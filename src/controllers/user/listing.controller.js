@@ -203,7 +203,7 @@ const toggleLike = async (req, res, next) => {
     res.cookie('guestLikedIds', JSON.stringify(updatedIds), {
       httpOnly: true,
       maxAge: 1000 * 60 * 60 * 24 * 365,
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       secure: process.env.NODE_ENV === 'production',
     });
 

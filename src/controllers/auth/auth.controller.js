@@ -24,8 +24,8 @@ const registerVerify = async (req, res, next) => {
     // Cookie-ni burada set et
     res.cookie('token', result.token, {
       httpOnly: true,
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 gün
     });
 
@@ -67,8 +67,8 @@ const loginVerify = async (req, res, next) => {
     // Cookie-ni burada set et
     res.cookie('token', result.token, {
       httpOnly: true,
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 gün
     });
 
@@ -112,8 +112,8 @@ const absoluteVerifyEnd = async (req, res, next) => {
     // Cookie-ni burada set et
     res.cookie('token', result.token, {
       httpOnly: true,
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 gün
     });
 
