@@ -23,6 +23,7 @@ const listingSchema = new Schema({
   document: { type: Boolean, default: false },
   credit: { type: Boolean, default: false },
   description: String,
+  video: String,
   
   // Kim yerləşdirib
   seller: { type: Schema.Types.ObjectId, ref: 'User' },

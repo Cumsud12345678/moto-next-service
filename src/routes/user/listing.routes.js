@@ -12,7 +12,8 @@ import {
   activeUrgent,
   toggleLike,
   getMyLikedListings,
-  getSimilarListings
+  getSimilarListings,
+  createUrlVideo
 } from "../../controllers/user/listing.controller.js";
 
 // TODO: öz auth middleware faylının yolunu bura yaz
@@ -25,6 +26,8 @@ const router = Router();
 router.get("/", optionalAuth, getListings);
 router.get("/filter", optionalAuth, getFilteredListings);
 router.get("/user/me", auth, getUserListings);
+
+router.get('/create/uploads/video/url', auth, createUrlVideo)
 
 // ⚠️ BUNU BURAYA KEÇİR — "/:listingId"-dən ƏVVƏL
 router.get('/likes', optionalAuth, getMyLikedListings);

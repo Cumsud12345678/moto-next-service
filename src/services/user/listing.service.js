@@ -4,6 +4,9 @@ import { Like } from "../../models/like.model.js";
 import mongoose from "mongoose";
 import { deleteManyFromR2, uploadToR2 } from "../storage.service.js";
 import crypto from 'crypto';
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import r2 from "../../config/r2Client.js";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // 1 ELANI GETIR
 const getListing = async (listingId, userId, guestLikedIds = []) => {
@@ -107,21 +110,23 @@ const getFilteredListings = async (filters, page=1, limit=10, userId, guestLiked
 }
 
 // ELAN YARAT
-const createListing = async (userId, data, files) => {
+const createListing = async (userId, data, files, listingId) => {
   const session = await mongoose.startSession();
   session.startTransaction();
 
   // Dəyişən try/catch-dən kənarda təyin olunur ki, catch daxilində çata bilsin
   const uploadedKeys = [];
+  let newListingId = listingId
 
   try {
-    const listingId = new mongoose.Types.ObjectId();
+    
+    if(!listingId) newListingId = new mongoose.Types.ObjectId()
 
     // 1. Şəkilləri R2-yə yükləyirik
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
 
-      const key = generateStorageKey(listingId, file.originalname)
+      const key = generateStorageKey(newListingId, file.originalname)
       
       await uploadToR2(file, key);
       uploadedKeys.push(key);
@@ -129,7 +134,7 @@ const createListing = async (userId, data, files) => {
 
     // 2. Bazada elan yaradırıq
     const listing = await Listing.create([{
-      _id: listingId,
+      _id: newListingId,
       ...data,
       seller: userId,
       status: 'active',
@@ -495,6 +500,31 @@ const getSimilarListings = async (currentListingId, userId, guestLikedIds, filte
 }
 
 
+const createUrlVideo = async () => {
+  const listingId = new mongoose.Types.ObjectId();
+  const extension = 'mp4'
+  const uniqueId = crypto.randomUUID(); // və ya Date.now()
+
+  const key = `listings/${listingId}/video/${uniqueId}.${extension}`
+
+  const command = new PutObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key: key,
+    ContentType: 'video/mp4'
+  })
+
+  const uploadUrl = await getSignedUrl(r2, command, {
+    expiresIn: 600,
+  })
+
+  return {
+    uploadUrl: uploadUrl,
+    key: key,
+    listingId: listingId
+  }
+}
+
+
 export default {
   getListing,
   getUserListings,
@@ -509,5 +539,7 @@ export default {
   adjustLikedCount,
   migrateGuestLikes,
   getMyLikedListings,
-  getSimilarListings
+  getSimilarListings,
+
+  createUrlVideo
 }

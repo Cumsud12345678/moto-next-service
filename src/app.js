@@ -50,6 +50,7 @@ app.use('/api/users', userRoutes)
 app.use('/api/listings', listingRoutes)
 app.use('/api/metadata', metadataRoutes)
 
+
 const startServer = async () => {
   await connectDB()
 

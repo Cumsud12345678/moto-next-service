@@ -328,7 +328,7 @@ const absoluteVerifyEnd = async (email, otp, ip) => {
   let newUser
 
   if(user) {
-    newUser = await User.updateOne({ email: email }, {
+    newUser = await User.findOneAndUpdate({ email: email }, {
       ip: ip,
     });
   }else {

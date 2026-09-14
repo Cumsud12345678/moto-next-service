@@ -81,13 +81,14 @@ const createListing = async (req, res, next) => {
     const userId = req.user?.id;
     const data = req.body;
     const files = req.files || [];
+    const listingId = req.body.listingId || null
 
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Giriş tələb olunur' });
     }
 
     // Bütün biznes məntiqi servisə ötürülür
-    const result = await listingService.createListing(userId, data, files);
+    const result = await listingService.createListing(userId, data, files, listingId);
 
     return res.status(201).json(result);
   } catch (err) {
@@ -257,6 +258,16 @@ const getSimilarListings = async (req, res, next) => {
 }
 
 
+const createUrlVideo = async (req, res, next) => {
+  try{
+    const url = await listingService.createUrlVideo()
+    res.status(200).json(url)
+  }catch(err) {
+    next(err)
+  }
+}
+
+
 export {
   getListing,
   getUserListings,
@@ -268,5 +279,7 @@ export {
   activeUrgent,
   toggleLike,
   getMyLikedListings,
-  getSimilarListings
+  getSimilarListings,
+
+  createUrlVideo
 };

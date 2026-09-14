@@ -51,8 +51,26 @@ const deleteManyFromR2 = async (keys) => {
   );
 };
 
+//  video upload
+const videoUploadToR2 = async (
+  file,
+  key
+) => {
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: BUCKET,
+      Key: key,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    })
+  );
+
+  return key;
+};
+
 export {
   uploadToR2,
   deleteFromR2,
   deleteManyFromR2,
+  videoUploadToR2
 };
