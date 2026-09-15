@@ -251,11 +251,9 @@ const loginVerify = async (email, otp, ip) => {
 };
 
 
-const absoluteVerifyStart = async (email, name) => {
+const absoluteVerifyStart = async (email) => {
   const user = await User.findOne({ email: email })
   const otp = String(Math.floor(100000 + Math.random() * 900000));
-
-  console.log(email)
 
   try {
     // 3. Email göndəririk
@@ -264,13 +262,14 @@ const absoluteVerifyStart = async (email, name) => {
     // 4. Redis-ə data yazırıq (5 dəqiqəlik)
     await redis.set(
       `absolute-verify-start:${email}`,
-      JSON.stringify({ otp, email, name }),
+      JSON.stringify({ otp, email }),
       { EX: 300 }
     );
 
     return {
       success: true,
-      message: 'Kod göndərildi',
+      isOldUser: user ? true : false,
+      message: 'Kod göndərildi'
     };
   } catch (mailErr) {
     console.error('OTP email xətası:', mailErr.message);
@@ -280,7 +279,7 @@ const absoluteVerifyStart = async (email, name) => {
   }
 }
 
-const absoluteVerifyEnd = async (email, otp, ip) => {
+const absoluteVerifyEnd = async (email, name, otp, ip) => {
   const user = await User.findOne({ email: email })
 
   // 1. Redis-dən datanı çəkirik
@@ -333,7 +332,7 @@ const absoluteVerifyEnd = async (email, otp, ip) => {
     });
   }else {
     newUser = await User.create({
-      name: absoluteLoginData.name,
+      name: name,
       avatar: 'default',
       email: email,
       ip: ip,
@@ -353,6 +352,7 @@ const absoluteVerifyEnd = async (email, otp, ip) => {
 
   return {
     success: true,
+    user: { _id: newUser._id, name: newUser.name, email: newUser.email, avatar: newUser.avatar, role: newUser.role, isWarning: newUser.isWarning },
     userId: newUser._id,
     token
   };

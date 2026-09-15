@@ -92,9 +92,9 @@ const loginVerify = async (req, res, next) => {
 const absoluteVerifyStart = async (req, res, next) => {
   try{
     const email = req.body.email;
-    const name = req.body.name || null;
+    // const name = req.body.name || null;
 
-    const result = await authService.absoluteVerifyStart(email, name)
+    const result = await authService.absoluteVerifyStart(email)
     res.status(200).json(result) // message, success
   }catch (err) {
     next(err)
@@ -104,10 +104,11 @@ const absoluteVerifyStart = async (req, res, next) => {
 const absoluteVerifyEnd = async (req, res, next) => {
   try{
     const email = req.body.email;
+    const name = req.body.name || null;
     const otp = req.body.otp;
     const ip = req.ip;
 
-    const result = await authService.absoluteVerifyEnd(email, otp, ip)
+    const result = await authService.absoluteVerifyEnd(email, name, otp, ip)
     
     // Cookie-ni burada set et
     res.cookie('token', result.token, {
@@ -133,6 +134,41 @@ const absoluteVerifyEnd = async (req, res, next) => {
   }
 }
 
+// LOGOUT
+const logout = async (req, res, next) => {
+  try {
+    const token = req.cookies.token
+
+    if (token) {
+      let decoded = null;
+      try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
+      } catch (e) {
+        // etibarsız, saxta və ya vaxtı keçmiş token — sadəcə cookie-ni təmizləyib davam edirik
+        decoded = null;
+      }
+      if (decoded?.exp) {
+        const ttl = decoded.exp - Math.floor(Date.now() / 1000)
+        if (ttl > 0) {
+          await redis.set(`blacklist:${token}`, '1', { EX: ttl })
+        }
+      }
+    }
+
+    const isProd = process.env.NODE_ENV === 'production'
+    const isTunnel = process.env.USE_TUNNEL === 'true'
+
+    res.clearCookie('token', {
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    })
+
+    return res.status(200).json({ success: true, message: 'Çıxış edildi' })
+  } catch (err) {
+    next(err)
+  }
+}
 
 const getMe = async (req, res, next) => {
   try{
@@ -155,6 +191,8 @@ export {
 
   absoluteVerifyStart,
   absoluteVerifyEnd,
+
+  logout,
 
   getMe
 }

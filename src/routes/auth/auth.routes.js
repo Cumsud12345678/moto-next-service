@@ -1,6 +1,7 @@
 import express from 'express'
-import { registerStart, registerVerify, loginStart, loginVerify, getMe, absoluteVerifyStart, absoluteVerifyEnd } from '../../controllers/auth/auth.controller.js'
+import { registerStart, registerVerify, loginStart, loginVerify, getMe, absoluteVerifyStart, absoluteVerifyEnd, logout } from '../../controllers/auth/auth.controller.js'
 import { optionalAuth } from '../../middlewares/optionalAuth.middleware.js'
+import { auth } from "../../middlewares/auth.middleware.js";
 
 const router = express.Router()
 
@@ -15,6 +16,8 @@ router.post('/login-verify', loginVerify)
 // Absolute
 router.post('/absolute/verify-start', absoluteVerifyStart)
 router.post('/absolute/verify-end', absoluteVerifyEnd)
+
+router.get('/logout', auth, logout)
 
 router.get('/me', optionalAuth, getMe)
 
