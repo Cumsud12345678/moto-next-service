@@ -1,8 +1,35 @@
-import { User } from "../../models/user.model"
+import mongoose from "mongoose"
+import { DeletedListing } from "../../models/deleted/deletedListing.model.js"
+import { DeletedUser } from "../../models/deleted/deletedUser.model.js"
+import { Listing } from "../../models/listing/listing.model.js"
+import { Message } from "../../models/message.model.js"
+import { User } from "../../models/user.model.js"
+import { Like } from "../../models/like.model.js"
+
+const getAllUsers = async (page = 1, limit = 10) => {
+  const skip = (page - 1) * limit
+
+  const [users, total] = await Promise.all([
+    User.find()
+      .populate('listingCount')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    User.countDocuments(),
+  ])
+  
+  return {
+    users,
+    total
+  }
+
+}
 
 const getFilteredUsers = async (filters, page, limit) => {
   const query = generateQuery(filters)
 
+  console.log(query)
   const [users, total] = await Promise.all([
     User.find(query)
       .sort({ createdAt: -1 })
@@ -15,18 +42,33 @@ const getFilteredUsers = async (filters, page, limit) => {
   return {users, total}
 }
 
+// const getUser = async (userId, email) => {
+//   let user;
+//   if(userId) {
+//     user = await User.findById(userId)
+//   }else if(email) {
+//     user = await User.findOne({ email: email })
+//   }
 
-const deleteUser = async (userId) => {
+//   return user
+// }
+
+const deleteUser = async (userId, adminId, reason) => {
   const session = await mongoose.startSession()
   session.startTransaction()
+
+  let imageKeys = []
 
   try{
     const user = await User.findById(userId).session(session)
     if (!user) throw new Error('User tapilmadi');
 
-    const listings = await Listing.find({ seller: userId })
+    const listings = await Listing.find({ seller: userId }).session(session)
 
     if(listings.length > 0) {
+
+      imageKeys = listings.flatMap(listing => listing.images)
+
       const deletedListingDocs = listings.map(listing => ({
         originalUserId: listing._id,
         snapshot: listing.toObject(),
@@ -47,9 +89,9 @@ const deleteUser = async (userId) => {
     await DeletedUser.create([{
       originalUserId: userId,
       snapshot: user.toObject(),
-      deletedBy: userId,
-      deletedByRole: 'user',
-      deletedReason: ''
+      deletedBy: adminId,
+      deletedByRole: 'admin',
+      deletedReason: reason
     }], { session })
 
     await User.findByIdAndDelete(userId).session(session)
@@ -61,10 +103,166 @@ const deleteUser = async (userId) => {
   } finally {
     await session.endSession();
   }
+
+  try{
+    await deleteManyFromR2(imageKeys)
+  }catch (err) {
+    console.error('R2 şəkilləri silinə bilmədi:', err)
+  }
+
 }
+
+const warningUser = async (userId, message) => {
+  const user = await User.findById(userId)
+  if (!user) throw new Error('User tapilmadi');
+
+  if(user.isWarning >= 5) {
+    return { success: false, message: 'Limite catib' }
+  }
+
+  
+  const [updatedUser, systemMessage] = await Promise.all([
+    User.updateOne({ _id: userId }, {
+      $inc: {
+        isWarning: 1
+      }
+    }),
+    Message.create({
+      user: userId,
+      message_type: 'warning',
+      message: message
+    })
+  ])
+
+  if(updatedUser.isWarning >= 5 && !updatedUser.isLocked) {
+    await Promise.all([
+      User.updateOne({_id: userId}, {
+        isLocked: true,
+        lockedAt: new Date()
+      }),
+      Listing.updateMany({seller: userId}, {
+        status: 'blocked'
+      })
+    ])
+  }
+
+  return {
+    success: true,
+    message: 'Guncellendi'
+  }
+}
+
+const resetWarningUser = async (userId) => {
+  const user = await User.findById(userId)
+  if (!user) throw new Error('User tapilmadi');
+
+  await Promise.all([
+    User.updateOne({_id: userId}, {
+      isWarning: 0,
+      isLocked: false,
+      lockedAt: null
+    }),
+    Listing.updateMany({seller: userId, status: 'blocked'}, {
+      status: 'active'
+    })
+  ])
+
+  return {
+    success: true,
+    message: 'User guncellendi'
+  }
+}
+
+const blokedUser = async (userId, message) => {
+  const user = await User.findById(userId)
+  if (!user) throw new Error('User tapilmadi');
+
+  await Promise.all([
+    User.updateOne({_id: userId}, {
+      isLocked: true,
+      lockedAt: new Date()
+    }),
+    Listing.updateMany({seller: userId, status: 'active'}, {
+      status: 'blocked'
+    }),
+    Message.create({
+      user: userId,
+      message_type: 'danger',
+      message: message
+    })
+  ])
+
+  return {
+    success: true,
+    message: 'User guncellendi'
+  }
+}
+
+const unBlokedUser = async (userId) => {
+  const user = await User.findById(userId)
+  if (!user) throw new Error('User tapilmadi');
+
+  await Promise.all([
+    User.updateOne({_id: userId}, {
+      isLocked: false,
+      lockedAt: null
+    }),
+    Listing.updateMany({seller: userId, status: 'blocked'}, {
+      status: 'active'
+    })
+  ])
+
+  return {
+    success: true,
+    message: 'User guncellendi'
+  }
+}
+
+const editUserRole = async (userId, role) => {
+  const user = await User.findById(userId)
+  if (!user) throw new Error('User tapilmadi');
+
+  const updatedUser = await User.updateOne({_id: userId}, {
+    role: role
+  })
+
+  return {
+    success: true,
+    message: 'User guncellendi'
+  }
+}
+
+const updateUsers = async (filters, data) => {
+  const query = generateQuery(filters)
+  return await User.updateMany(query, data, { runValidators: true })
+}
+
+
+// DELETED USERS LE BAQLI
+const getDeletedUsers = async (page = 1, limit = 10) => {
+  const skip = (page - 1) * limit;
+
+  const [deletedUsers, total] = await Promise.all([
+    DeletedListing.find()
+      .populate('deletedBy')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    DeletedListing.countDocuments()
+  ])
+
+  return {
+    deletedUsers,
+    total
+  }
+}
+
 
 const generateQuery = (filters) => {
   const query = {}
+  if(filters.userId) query._id = filters.userId;
+  if(filters.email) query.email = filters.email;
   if(filters.name) query.name = filters.name;
   if(filters.ip) query.ip = filters.ip;
   if(filters.role) query.role = filters.role;
@@ -74,8 +272,15 @@ const generateQuery = (filters) => {
 }
 
 
-const updateUsers = async (filters, data) => {
-  const query = generateQuery(filters)
-  return await User.updateMany(query, data, { runValidators: true })
+export default {
+  getAllUsers,
+  getFilteredUsers,
+  // getUser,
+  deleteUser,
+  warningUser,
+  resetWarningUser,
+  blokedUser,
+  unBlokedUser,
+  editUserRole,
+  getDeletedUsers
 }
-

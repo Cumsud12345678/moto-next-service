@@ -9,7 +9,7 @@ const deletedUserSerSchema = new Schema({
   // Kim, nə vaxt, niyə sildi
   deletedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   deletedByRole: { type: String, enum: ['user', 'admin', 'system'] }, // özü, admin, yoxsa avtomatik (expired)
-  deleteReason: { type: String }, // 'sold', 'user_deleted', 'admin_removed', 'spam', 'expired_cleanup'
+  deletedReason: { type: String }, // 'sold', 'user_deleted', 'admin_removed', 'spam', 'expired_cleanup'
 }, {
   timestamps: true
 })

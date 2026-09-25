@@ -10,8 +10,14 @@ import cookieParser from 'cookie-parser';
 import authRoutes from "./routes/auth/auth.routes.js";
 import listingRoutes from "./routes/user/listing.routes.js";
 import userRoutes from "./routes/user/user.routes.js";
-import metadataRoutes from "./routes/metadata/metadata.routes.js";
+import metadataRoutes from "./routes/metadata.routes.js";
 
+import adminUserRoutes from './routes/admin/adminUser.routes.js'
+import adminListingRoutes from './routes/admin/adminListing.routes.js'
+import groupRoutes from './routes/admin/group.routes.js'
+import adsenseRoutes from './routes/admin/adsense.routes.js'
+
+import { admin } from './middlewares/admin.middleware.js';
 
 const app = express()
 
@@ -49,7 +55,11 @@ app.use('/api/auth', authRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/listings', listingRoutes)
 app.use('/api/metadata', metadataRoutes)
+app.use('/api/groups', groupRoutes)
+app.use('/api/adsense', adsenseRoutes)
 
+app.use('/api/admin/users', admin, adminUserRoutes)
+app.use('/api/admin/listings', admin, adminListingRoutes)
 
 const startServer = async () => {
   await connectDB()

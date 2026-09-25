@@ -2,11 +2,12 @@ import { Listing } from "../../models/listing/listing.model.js";
 import { DeletedListing } from "../../models/deleted/deletedListing.model.js";
 import { Like } from "../../models/like.model.js";
 import mongoose from "mongoose";
-import { deleteManyFromR2, uploadToR2 } from "../storage.service.js";
+import { deleteFromR2, deleteManyFromR2, uploadToR2 } from "../storage.service.js";
 import crypto from 'crypto';
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import r2 from "../../config/r2Client.js";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { Adsense } from "../../models/adsense.model.js";
 
 // 1 ELANI GETIR
 const getListing = async (listingId, userId, guestLikedIds = []) => {
@@ -216,6 +217,7 @@ const updateListing = async (listingId, data, newFiles = [], keepImageKeys = [])
     if (newlyUploadedKeys.length > 0) {
       try {
         await deleteManyFromR2(newlyUploadedKeys);
+        if(listing.video && data.video !== listing.video) await deleteFromR2(listing.video)
       } catch (cleanupErr) {
         console.error('R2 cleanup failed during update:', cleanupErr);
       }
@@ -225,24 +227,20 @@ const updateListing = async (listingId, data, newFiles = [], keepImageKeys = [])
   }
 };
 
-
-// const updateListings = async (filters, data) => {
-//   const query = generateQuery(filters)
-//   return await Listing.updateMany(query, data, { runValidators: true })
-// }
-
 // ELANI SIL
 const deleteListing = async (userId, listingId) => {
   const session = await mongoose.startSession()
   session.startTransaction()
 
   let imageKeys = []
+  let videoKey
 
   try{
     const listing = await Listing.findById(listingId).session(session)
     if (!listing) throw new Error('Elan tapilmadi');
 
     imageKeys = listing.images || []
+    videoKey = listing.video || null
 
     await Like.deleteMany({listing: listing._id}, { session })
 
@@ -270,6 +268,7 @@ const deleteListing = async (userId, listingId) => {
 
   try{
     await deleteManyFromR2(imageKeys)
+    if(videoKey) await deleteFromR2(videoKey);
   }catch (err) {
     console.error('R2 şəkilləri silinə bilmədi:', err)
   }
@@ -278,17 +277,6 @@ const deleteListing = async (userId, listingId) => {
     success: true,
     message: 'Elan uğurla silindi'
   }
-}
-
-// ELANI URGENT ET
-const activeUrgent = async (listingId) => {
-  const listing = await Listing.findById(listingId);
-  if (!listing) throw new Error('Elan tapılmadı');
-  if (listing.isUrgent) throw new Error('Elan əvvəl dəyişdirilib');
-  
-  listing.isUrgent = true;
-  listing.urgentExpiresAt = new Date();
-  return await listing.save()
 }
 
 // YARDIMCI FUNKSIYA
@@ -500,8 +488,13 @@ const getSimilarListings = async (currentListingId, userId, guestLikedIds, filte
 }
 
 
-const createUrlVideo = async () => {
-  const listingId = new mongoose.Types.ObjectId();
+const createUrlVideo = async (id) => {
+  let listingId
+  if(id) {
+    listingId = id
+  }else {
+    listingId = new mongoose.Types.ObjectId();
+  }
   const extension = 'mp4'
   const uniqueId = crypto.randomUUID(); // və ya Date.now()
 
@@ -525,6 +518,23 @@ const createUrlVideo = async () => {
 }
 
 
+const clickListing = async (listingId = null) => {
+  const listing = await Listing.findById(listingId)
+  if (!listing) throw new Error('Elan tapilmadi');
+
+  await Adsense.updateOne(
+    { _id: listingId },
+    {
+      $inc: { viewCount: 1 }
+    }
+  )
+
+  return {
+    success: true
+  }
+}
+
+
 export default {
   getListing,
   getUserListings,
@@ -533,7 +543,6 @@ export default {
   createListing,
   updateListing,
   deleteListing,
-  activeUrgent,
 
   toggleLikeForUser,
   adjustLikedCount,
@@ -541,5 +550,6 @@ export default {
   getMyLikedListings,
   getSimilarListings,
 
-  createUrlVideo
+  createUrlVideo,
+  clickListing
 }

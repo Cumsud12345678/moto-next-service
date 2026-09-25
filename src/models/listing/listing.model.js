@@ -45,11 +45,6 @@ const listingSchema = new Schema({
     default: () => Math.random()
   },
 
-  // Boost/VIP
-  isBoosted: { type: Boolean, default: false },
-  boostRemainingCount: { type: Number, default: 0 },
-  lastBoostedAt: { type: Date, default: null },
-
   isUrgent: { type: Boolean, default: false },
   urgentActiveAt: { type: Date },
   urgentExpiresAt: { type: Date }
@@ -76,6 +71,19 @@ listingSchema.query.withFullRelations = function() {
     .populate('transmission')
     .populate('equipment')
     .populate('seller', 'name')
+}
+
+listingSchema.query.withAdminFullRelations = function() {
+  return this
+    .populate('make')
+    .populate('model')
+    .populate('region')
+    .populate('category')
+    .populate('color')
+    .populate('fuelType')
+    .populate('transmission')
+    .populate('equipment')
+    .populate('seller', '_id name role email')
 }
 
 const Listing = mongoose.model('Listing', listingSchema)

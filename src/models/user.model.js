@@ -30,6 +30,13 @@ const userSchema = new Schema({
   timestamps: true
 })
 
+userSchema.virtual('listingCount', {
+  ref: 'Listing',
+  localField: '_id',
+  foreignField: 'seller',
+  count: true
+})
+
 userSchema.index({ email: 1 }, { unique: true })
 userSchema.index({ ip: 1 })
 userSchema.index({ role: 1 })

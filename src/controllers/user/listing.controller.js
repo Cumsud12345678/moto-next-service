@@ -160,22 +160,6 @@ const deleteListing = async (req, res, next) => {
   }
 };
 
-
-// ELANI URGENT ET
-const activeUrgent = async (req, res, next) => {
-  try {
-    const { listingId } = req.params;
-
-    const listing = await listingService.activeUrgent(listingId);
-
-    return res.status(200).json({ success: true, data: listing });
-  } catch (err) {
-    next(err)
-  }
-};
-
-
-
 const toggleLike = async (req, res, next) => {
   try {
     const { listingId } = req.params;
@@ -267,6 +251,28 @@ const createUrlVideo = async (req, res, next) => {
   }
 }
 
+const authCreateUrlVideo = async (req, res, next) => {
+  try{
+    const id = req.params.id
+    const url = await listingService.createUrlVideo(id)
+    res.status(200).json(url)
+  }catch(err) {
+    next(err)
+  }
+}
+
+const clickListing = async (req, res, next) => {
+  try{
+    const listingId = req.params.listingId;
+
+    const result = await listingService.clickListing(listingId)
+
+    res.status(200).json(result)
+  }catch(err) {
+    next(err)
+  }
+}
+
 
 export {
   getListing,
@@ -276,10 +282,12 @@ export {
   createListing,
   updateListing,
   deleteListing,
-  activeUrgent,
   toggleLike,
   getMyLikedListings,
   getSimilarListings,
 
-  createUrlVideo
+  createUrlVideo,
+  authCreateUrlVideo,
+  
+  clickListing
 };
