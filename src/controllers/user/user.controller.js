@@ -13,7 +13,7 @@ const getUser = async (req, res, next) => {
 
 const updateUser = async (req, res, next) => {
   try{
-    const data = req.body
+    const name = req.body.name
     const paramsId = req.params.userId
     const userId = req.user?.id
     
@@ -21,7 +21,7 @@ const updateUser = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'icazesiz giris' })
     }
     
-    const updated = await userService.updateUser(userId, data)
+    const updated = await userService.updateUser(userId, name)
 
     res.status(200).json({ success: true, data: updated })
 

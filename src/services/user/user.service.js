@@ -8,10 +8,10 @@ const getUser = async (userId) => {
 }
 
 // USERI GUNCELLE
-const updateUser = async (userId, data) => {
+const updateUser = async (userId, name) => {
   
   const updated = await User.findByIdAndUpdate(userId, {
-    ...data,
+    name: name,
   }, {
     new: true, // returnDocument əvəzinə bunu işlətmək daha etibarlıdır Mongoose-da
     runValidators: true

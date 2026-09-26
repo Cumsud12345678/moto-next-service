@@ -5,6 +5,6 @@ import { auth } from '../../middlewares/auth.middleware.js'
 const router = Router();
 
 router.get('/:userId', auth, getUser)
-router.put('/:userId', auth, updateUser)
+router.put('/edit/name/:userId', auth, updateUser)
 
 export default router
