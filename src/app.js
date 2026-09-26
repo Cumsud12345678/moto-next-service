@@ -11,6 +11,7 @@ import authRoutes from "./routes/auth/auth.routes.js";
 import listingRoutes from "./routes/user/listing.routes.js";
 import userRoutes from "./routes/user/user.routes.js";
 import metadataRoutes from "./routes/metadata.routes.js";
+import messageRoutes from "./routes/user/message.routes.js";
 
 import adminUserRoutes from './routes/admin/adminUser.routes.js'
 import adminListingRoutes from './routes/admin/adminListing.routes.js'
@@ -23,7 +24,6 @@ const app = express()
 
 app.set('trust proxy', true);
 app.use(cookieParser());
-app.use(errorMiddleware);
 
 dotenv.config();
 
@@ -57,9 +57,12 @@ app.use('/api/listings', listingRoutes)
 app.use('/api/metadata', metadataRoutes)
 app.use('/api/groups', groupRoutes)
 app.use('/api/adsense', adsenseRoutes)
+app.use('/api/messages', messageRoutes)
 
 app.use('/api/admin/users', admin, adminUserRoutes)
 app.use('/api/admin/listings', admin, adminListingRoutes)
+
+app.use(errorMiddleware);
 
 const startServer = async () => {
   await connectDB()

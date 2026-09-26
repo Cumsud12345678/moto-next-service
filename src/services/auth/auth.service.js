@@ -126,6 +126,7 @@ const registerVerify = async (email, otp, ip) => {
 
   return {
     success: true,
+    message: 'Uğurlu qeydiyyat. Xoş gəldiniz',
     data: newUser,
     token: token
   };
@@ -136,6 +137,12 @@ const loginStart = async (email) => {
   const user = await User.findOne({ email: email })
   if(!user) {
     const error = new Error('İstifadəçi hesabı tapilmadi');
+    error.statusCode = 404; // 409 Conflict
+    throw error;
+  }
+
+  if(user.isLocked) {
+    const error = new Error('Hesabınız bloklanıb. Əlavə məlumat üçün dəsdəklə əlaqə saxlayın');
     error.statusCode = 404; // 409 Conflict
     throw error;
   }
@@ -172,6 +179,11 @@ const loginStart = async (email) => {
       { EX: 300 }
     )
 
+    return {
+      success: true,
+      message: 'Kod göndərildi'
+    }
+
   } catch (mailErr) {
     console.error('OTP email xətası:', mailErr.message);
     const error = new Error('Kod göndərilmədi, bir az sonra yenidən cəhd edin');
@@ -186,6 +198,12 @@ const loginVerify = async (email, otp, ip) => {
   if (!user) {
     const error = new Error('İstifadəçi hesabı movcud deyil');
     error.statusCode = 404;
+    throw error;
+  }
+
+  if(user.isLocked) {
+    const error = new Error('Hesabınız bloklanıb. Əlavə məlumat üçün dəsdəklə əlaqə saxlayın');
+    error.statusCode = 404; // 409 Conflict
     throw error;
   }
 
@@ -245,6 +263,7 @@ const loginVerify = async (email, otp, ip) => {
 
   return {
     success: true,
+    message: 'Uğurlu qeydiyyat. Xoş gəldiniz',
     data: user,
     token: token
   };
@@ -254,6 +273,12 @@ const loginVerify = async (email, otp, ip) => {
 const absoluteVerifyStart = async (email) => {
   const user = await User.findOne({ email: email })
   const otp = String(Math.floor(100000 + Math.random() * 900000));
+
+  if(user && user.isLocked) {
+    const error = new Error('Hesabınız bloklanıb. Əlavə məlumat üçün dəsdəklə əlaqə saxlayın');
+    error.statusCode = 404; // 409 Conflict
+    throw error;
+  }
 
   try {
     // 3. Email göndəririk
@@ -281,6 +306,12 @@ const absoluteVerifyStart = async (email) => {
 
 const absoluteVerifyEnd = async (email, name, otp, ip) => {
   const user = await User.findOne({ email: email })
+
+  if(user && user.isLocked) {
+    const error = new Error('Hesabınız bloklanıb. Əlavə məlumat üçün dəsdəklə əlaqə saxlayın');
+    error.statusCode = 404; // 409 Conflict
+    throw error;
+  }
 
   // 1. Redis-dən datanı çəkirik
   const data = await redis.get(`absolute-verify-start:${email}`);
@@ -352,6 +383,7 @@ const absoluteVerifyEnd = async (email, name, otp, ip) => {
 
   return {
     success: true,
+    message: 'Uğurlu qeydiyyat. Xoş gəldiniz',
     user: { _id: newUser._id, name: newUser.name, email: newUser.email, avatar: newUser.avatar, role: newUser.role, isWarning: newUser.isWarning },
     userId: newUser._id,
     token

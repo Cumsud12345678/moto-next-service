@@ -9,6 +9,7 @@ import {
   createListing,
   updateListing,
   deleteListing,
+  updateExpiredListing,
   toggleLike,
   getMyLikedListings,
   getSimilarListings,
@@ -34,6 +35,8 @@ router.get('/create/uploads/video/url/:id', auth, authCreateUrlVideo)
 router.get('/likes', optionalAuth, getMyLikedListings);
 router.get('/:listingId/similar', optionalAuth, getSimilarListings);
 router.get("/:listingId", optionalAuth, getListing);   // ← indi bundan sonra gəlir
+
+router.get("/expired/listing/update/:listingId", auth, updateExpiredListing)
 
 router.post("/click/:listingId", clickListing);
 router.post("/", auth, upload.array("images"), createListing);

@@ -2,12 +2,12 @@ import mongoose from "mongoose";
 
 const messageSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  message_type: {
+  messageType: {
     type: String,
     enum: ['success', 'warning', 'danger', 'error'],
     default: 'success'
   },
-  is_view: {
+  isView: {
     type: Boolean,
     default: false
   },

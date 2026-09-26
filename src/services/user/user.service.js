@@ -20,7 +20,11 @@ const updateUser = async (userId, name) => {
   if (!updated) {
     throw new Error('User not found'); // və ya öz error handling-in
   }
-  return updated;
+  return {
+    success: true,
+    message: 'Ad dəyişdirildi',
+    data: updated
+  };
 }
 
 export default {

@@ -146,6 +146,7 @@ const createListing = async (userId, data, files, listingId) => {
 
     return {
       success: true,
+      message: 'Elan uğurla yaradıldı',
       data: listing[0]
     };
   } catch (err) {
@@ -208,6 +209,7 @@ const updateListing = async (listingId, data, newFiles = [], keepImageKeys = [])
 
     return {
       success: true,
+      message: 'Elan güncəlləndi',
       data: updatedListing,
     };
 
@@ -279,69 +281,19 @@ const deleteListing = async (userId, listingId) => {
   }
 }
 
-// YARDIMCI FUNKSIYA
-const generateQuery = (filters) => {
-  const query = {}
+const updateExpiredListing = async (listingId, userId) => {
+  const listing = await Listing.findOne({ _id: listingId, status: 'expired', seller: userId })
+  if (!listing) throw new Error('Elan tapilmadi');
+ 
+  await Listing.updateOne({ _id: listingId }, {
+    status: "active"
+  })
 
-  query.status = 'active'
-  if(filters.make) query.make = filters.make;
-  if(filters.model) query.model = filters.model;
-  if(filters.category) query.category = filters.category;
-  if(filters.used !== undefined) query.used = filters.used;
-  if(filters.color) query.color = filters.color;
-  if(filters.fuelType) query.fuelType = filters.fuelType;
-  if(filters.transmission) query.transmission = filters.transmission;
-  if(filters.region) query.region = filters.region;
-  if(filters.barter !== undefined) query.barter = filters.barter;
-  if(filters.document !== undefined) query.document = filters.document;
-  if(filters.seller) query.seller = filters.seller;
-  if(filters.status) query.status = filters.status;
-  if(filters.isBoosted !== undefined) query.isBoosted = filters.isBoosted;
-  if(filters.isUrgent !== undefined) query.isUrgent = filters.isUrgent;
-  
-  if(filters.equipment) {
-    const equipmentArr = Array.isArray(filters.equipment) ? filters.equipment : [filters.equipment];
-    query.equipment = { $all: equipmentArr };
+  return {
+    success: true,
+    message: 'Elan aktiv edildi'
   }
-  if(filters.minPrice || filters.maxPrice) {
-    query.price = {}
-    if(filters.minPrice) query.price.$gte = filters.minPrice;
-    if(filters.maxPrice) query.price.$lte = filters.maxPrice;
-  }else if(filters.price){
-    query.price = filters.price;
-  }
-  if(filters.minYear || filters.maxYear) {
-    query.year = {}
-    if(filters.minYear) query.year.$gte = filters.minYear;
-    if(filters.maxYear) query.year.$lte = filters.maxYear;
-  }else if(filters.year) {
-    query.year = filters.year;
-  }
-  if(filters.minVolume || filters.maxVolume) {
-    query.volume = {}
-    if(filters.minVolume) query.volume.$gte = filters.minVolume;
-    if(filters.maxVolume) query.volume.$lte = filters.maxVolume;
-  }else if(filters.volume) {
-    query.volume = filters.volume;
-  }
-  if(filters.minPower || filters.maxPower) {
-    query.power = {}
-    if(filters.minPower) query.power.$gte = filters.minPower;
-    if(filters.maxPower) query.power.$lte = filters.maxPower;
-  }else if(filters.power) {
-    query.power = filters.power;
-  }
-  if(filters.minMileage || filters.maxMileage) {
-    query.mileage = {}
-    if(filters.minPileage) query.mileage.$gte = filters.minMileage;
-    if(filters.maxPileage) query.mileage.$lte = filters.maxMileage;
-  }else if(filters.mileage) {
-    query.mileage = filters.mileage;
-  }
-
-  return query;
 }
-
 
 // USER UCUN LIKE/UNLIKE
 const toggleLikeForUser = async (userId, listingId) => {
@@ -400,25 +352,6 @@ const getMyLikedListings = async (userId, guestLikedIds) => {
 
   return liked
 }
-
-
-const generateStorageKey = (listingId, originalname) => {
-  const extension = originalname.split('.').pop()?.toLowerCase() || 'webp';
-  const uniqueId = crypto.randomUUID(); // və ya Date.now()
-  return `listings/${listingId}/${uniqueId}.${extension}`
-}
-
-const migrateGuestLikes = async (userId, listingIds) => {
-  const ops = listingIds.map((listingId) => ({
-    updateOne: {
-      filter: { user: userId, listing: listingId },
-      update: { $setOnInsert: { user: userId, listing: listingId } },
-      upsert: true,
-    },
-  }));
-  await Like.bulkWrite(ops);
-};
-
 
 // listing.service.js
 const getSimilarListings = async (currentListingId, userId, guestLikedIds, filters, limit = 12) => {
@@ -487,7 +420,6 @@ const getSimilarListings = async (currentListingId, userId, guestLikedIds, filte
   }))
 }
 
-
 const createUrlVideo = async (id) => {
   let listingId
   if(id) {
@@ -517,7 +449,6 @@ const createUrlVideo = async (id) => {
   }
 }
 
-
 const clickListing = async (listingId = null) => {
   const listing = await Listing.findById(listingId)
   if (!listing) throw new Error('Elan tapilmadi');
@@ -534,6 +465,85 @@ const clickListing = async (listingId = null) => {
   }
 }
 
+// YARDIMCI FUNKSIYA
+const generateQuery = (filters) => {
+  const query = {}
+
+  query.status = 'active'
+  if(filters.make) query.make = filters.make;
+  if(filters.model) query.model = filters.model;
+  if(filters.category) query.category = filters.category;
+  if(filters.used !== undefined) query.used = filters.used;
+  if(filters.color) query.color = filters.color;
+  if(filters.fuelType) query.fuelType = filters.fuelType;
+  if(filters.transmission) query.transmission = filters.transmission;
+  if(filters.region) query.region = filters.region;
+  if(filters.barter !== undefined) query.barter = filters.barter;
+  if(filters.document !== undefined) query.document = filters.document;
+  if(filters.seller) query.seller = filters.seller;
+  if(filters.status) query.status = filters.status;
+  if(filters.isBoosted !== undefined) query.isBoosted = filters.isBoosted;
+  if(filters.isUrgent !== undefined) query.isUrgent = filters.isUrgent;
+  
+  if(filters.equipment) {
+    const equipmentArr = Array.isArray(filters.equipment) ? filters.equipment : [filters.equipment];
+    query.equipment = { $all: equipmentArr };
+  }
+  if(filters.minPrice || filters.maxPrice) {
+    query.price = {}
+    if(filters.minPrice) query.price.$gte = filters.minPrice;
+    if(filters.maxPrice) query.price.$lte = filters.maxPrice;
+  }else if(filters.price){
+    query.price = filters.price;
+  }
+  if(filters.minYear || filters.maxYear) {
+    query.year = {}
+    if(filters.minYear) query.year.$gte = filters.minYear;
+    if(filters.maxYear) query.year.$lte = filters.maxYear;
+  }else if(filters.year) {
+    query.year = filters.year;
+  }
+  if(filters.minVolume || filters.maxVolume) {
+    query.volume = {}
+    if(filters.minVolume) query.volume.$gte = filters.minVolume;
+    if(filters.maxVolume) query.volume.$lte = filters.maxVolume;
+  }else if(filters.volume) {
+    query.volume = filters.volume;
+  }
+  if(filters.minPower || filters.maxPower) {
+    query.power = {}
+    if(filters.minPower) query.power.$gte = filters.minPower;
+    if(filters.maxPower) query.power.$lte = filters.maxPower;
+  }else if(filters.power) {
+    query.power = filters.power;
+  }
+  if(filters.minMileage || filters.maxMileage) {
+    query.mileage = {}
+    if(filters.minPileage) query.mileage.$gte = filters.minMileage;
+    if(filters.maxPileage) query.mileage.$lte = filters.maxMileage;
+  }else if(filters.mileage) {
+    query.mileage = filters.mileage;
+  }
+
+  return query;
+}
+
+const generateStorageKey = (listingId, originalname) => {
+  const extension = originalname.split('.').pop()?.toLowerCase() || 'webp';
+  const uniqueId = crypto.randomUUID(); // və ya Date.now()
+  return `listings/${listingId}/${uniqueId}.${extension}`
+}
+
+const migrateGuestLikes = async (userId, listingIds) => {
+  const ops = listingIds.map((listingId) => ({
+    updateOne: {
+      filter: { user: userId, listing: listingId },
+      update: { $setOnInsert: { user: userId, listing: listingId } },
+      upsert: true,
+    },
+  }));
+  await Like.bulkWrite(ops);
+};
 
 export default {
   getListing,
@@ -543,6 +553,7 @@ export default {
   createListing,
   updateListing,
   deleteListing,
+  updateExpiredListing,
 
   toggleLikeForUser,
   adjustLikedCount,

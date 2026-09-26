@@ -160,6 +160,23 @@ const deleteListing = async (req, res, next) => {
   }
 };
 
+const updateExpiredListing = async (req, res, next) => {
+  try {
+    const listingId = req.params.listingId;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Giriş tələb olunur' });
+    }
+
+    const result = await listingService.updateExpiredListing(listingId, userId);
+
+    return res.status(200).json(result);
+  } catch (err) {
+    next(err)
+  }
+};
+
 const toggleLike = async (req, res, next) => {
   try {
     const { listingId } = req.params;
@@ -282,6 +299,8 @@ export {
   createListing,
   updateListing,
   deleteListing,
+  updateExpiredListing,
+
   toggleLike,
   getMyLikedListings,
   getSimilarListings,

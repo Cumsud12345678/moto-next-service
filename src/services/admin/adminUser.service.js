@@ -129,7 +129,7 @@ const warningUser = async (userId, message) => {
     }),
     Message.create({
       user: userId,
-      message_type: 'warning',
+      messageType: 'warning',
       message: message
     })
   ])
@@ -187,7 +187,7 @@ const blokedUser = async (userId, message) => {
     }),
     Message.create({
       user: userId,
-      message_type: 'danger',
+      messageType: 'danger',
       message: message
     })
   ])
