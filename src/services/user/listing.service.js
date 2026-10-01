@@ -58,11 +58,13 @@ const getListings = async (page = 1, limit = 10, userId, guestLikedIds) => {
 
   const listings = await Listing.find({ status: 'active' })
     .select('images document barter credit isUrgent price year volume mileage')
-    .sort({ isUrgent: -1, randomKey: -1 })
+    .sort({ isUrgent: -1, createdAt: -1 })
     .skip(skip)
     .limit(limit)
     .withCardRelations()
     .lean();
+
+  console.log(listings.length)
 
   const listingIds = listings.map(l => l._id);
   let likedListingIds;
