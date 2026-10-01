@@ -1,4 +1,4 @@
-import { Group } from "../../models/group.model.js";
+import { Group } from "../../models/interaction/group.model.js";
 import { deleteFromR2, uploadToR2 } from "../storage.service.js";
 
 const getGroups = async () => {

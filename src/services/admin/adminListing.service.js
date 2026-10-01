@@ -1,10 +1,10 @@
 import mongoose from "mongoose"
-import { DeletedListing } from "../../models/deleted/deletedListing.model.js"
-import { DeletedUser } from "../../models/deleted/deletedUser.model.js"
+import { DeletedListing } from "../../models/listing/deletedListing.model.js"
+import { DeletedUser } from "../../models/user/deletedUser.model.js"
 import { Listing } from "../../models/listing/listing.model.js"
-import { Message } from "../../models/message.model.js"
-import { User } from "../../models/user.model.js"
-import { Like } from "../../models/like.model.js"
+import { Message } from "../../models/interaction/message.model.js"
+import { User } from "../../models/user/user.model.js"
+import { Like } from "../../models/interaction/like.model.js"
 
 // BUTUN ELANLARI GETIR
 const getAllListings = async (page = 1, limit = 10) => {

@@ -1,4 +1,4 @@
-import { Adsense } from "../../models/adsense.model.js"
+import { Adsense } from "../../models/advertising/adsense.model.js"
 import { uploadToR2, deleteFromR2 } from "../storage.service.js"
 
 const getAllAdsense = async () => {

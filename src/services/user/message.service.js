@@ -1,4 +1,4 @@
-import { Message } from "../../models/message.model.js";
+import { Message } from "../../models/interaction/message.model.js";
 
 const getAllMessage = async (userId) => {
   const messages = await Message.find({ user: userId })

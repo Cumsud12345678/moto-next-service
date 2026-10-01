@@ -1,4 +1,4 @@
-import { sendErrorMail } from "../services/email/sendErrorMail.service.js";
+// import { sendErrorMail } from "../services/email/sendErrorMail.service.js";
 
 const errorMiddleware = (err, req, res, next) => {
   let statusCode = err.statusCode || 500;
@@ -10,17 +10,17 @@ const errorMiddleware = (err, req, res, next) => {
     message = 'Şəkil ölçüsü çox böyükdür (maksimum 2MB)'
   }
  
-  if (statusCode >= 500) {
-    sendErrorMail({
-      statusCode,
-      message,
-      stack: err.stack,
-      method: req.method,
-      url: req.originalUrl,
-      user: req.user?.id,
-      ip: req.ip,
-    }).catch(console.error);
-  }
+  // if (statusCode >= 500) {
+  //   sendErrorMail({
+  //     statusCode,
+  //     message,
+  //     stack: err.stack,
+  //     method: req.method,
+  //     url: req.originalUrl,
+  //     user: req.user?.id,
+  //     ip: req.ip,
+  //   }).catch(console.error);
+  // }
  
   res.status(statusCode).json({
     success: false,

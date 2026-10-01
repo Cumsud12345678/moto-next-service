@@ -14,6 +14,10 @@ const userSchema = new Schema({
     default: 'user',
     enum: ['user', 'seller', 'service', 'admin']
   },
+  giftPremiumCount: {
+    type: Number,
+    default: 1
+  },
   isWarning: {
     type: Number,
     default: 0

@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
-import { User } from "../../models/user.model.js";
+import { User } from "../../models/user/user.model.js";
 import { deleteFromR2, uploadToR2 } from "../storage.service.js";
 
 // 1 USERI GETIR
 const getUser = async (userId) => {
-  return await User.findById(userId).select('name avatar email role isWarning').lean()
+  return await User.findById(userId).select('name avatar email role giftPremiumCount isWarning').lean()
 }
 
 // USERI GUNCELLE
@@ -27,7 +27,23 @@ const updateUser = async (userId, name) => {
   };
 }
 
+const usingTheGift = async (userId) => {
+  const user = await User.findOne({ _id: userId, giftPremiumCount: { $gte: 1 } })
+  if (!user) throw new Error('User tapilmadi');
+
+  await User.updateOne({_id: userId}, {
+    $inc: {
+      giftPremiumCount: -1
+    }
+  })
+
+  return {
+    success: true
+  }
+}
+
 export default {
   getUser,
   updateUser,
+  usingTheGift
 }

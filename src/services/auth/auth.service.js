@@ -1,5 +1,5 @@
 import { redis } from "../../config/redis.config.js";
-import { User } from "../../models/user.model.js";
+import { User } from "../../models/user/user.model.js";
 import { sendOtpEmail } from "../email/sendMail.service.js";
 import jwt from 'jsonwebtoken'
 
@@ -392,7 +392,7 @@ const absoluteVerifyEnd = async (email, name, otp, ip) => {
 
 
 const getMe = async (userId) => {
-  return await User.findById(userId).select('_id name email avatar isWarning role')
+  return await User.findById(userId).select('_id name email avatar isWarning role giftPremiumCount')
 }
 
 

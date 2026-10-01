@@ -1,13 +1,13 @@
 import { Listing } from "../../models/listing/listing.model.js";
-import { DeletedListing } from "../../models/deleted/deletedListing.model.js";
-import { Like } from "../../models/like.model.js";
+import { DeletedListing } from "../../models/listing/deletedListing.model.js";
+import { Like } from "../../models/interaction/like.model.js";
 import mongoose from "mongoose";
 import { deleteFromR2, deleteManyFromR2, uploadToR2 } from "../storage.service.js";
 import crypto from 'crypto';
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import r2 from "../../config/r2Client.js";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { Adsense } from "../../models/adsense.model.js";
+import { Adsense } from "../../models/advertising/adsense.model.js";
 
 // 1 ELANI GETIR
 const getListing = async (listingId, userId, guestLikedIds = []) => {
@@ -453,12 +453,29 @@ const clickListing = async (listingId = null) => {
   const listing = await Listing.findById(listingId)
   if (!listing) throw new Error('Elan tapilmadi');
 
-  await Adsense.updateOne(
+  await Listing.updateOne(
     { _id: listingId },
     {
       $inc: { viewCount: 1 }
     }
   )
+
+  return {
+    success: true
+  }
+}
+
+const freeListingUrgent = async (listingId) => {
+  const listing = await Listing.findById(listingId)
+  if (!listing) throw new Error('Elan tapilmadi');
+
+  const now = new Date()
+  
+  await Listing.updateOne({ _id: listingId }, {
+    isUrgent: true,
+    urgentActiveAt: now,
+    urgentExpiresAt: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000)
+  })
 
   return {
     success: true
@@ -562,5 +579,7 @@ export default {
   getSimilarListings,
 
   createUrlVideo,
-  clickListing
+  clickListing,
+
+  freeListingUrgent
 }
