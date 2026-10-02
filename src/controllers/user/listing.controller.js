@@ -68,8 +68,8 @@ const getFilteredListings = async (req, res, next) => {
     const userId = req.user?.id;
     const guestLikedIds = parseGuestLikedIds(req.cookies?.guestLikedIds); // ✅
     const { page: _p, limit: _l, ...filters } = req.query;
-    const listings = await listingService.getFilteredListings(filters, page, limit, userId, guestLikedIds);
-    return res.status(200).json({ success: true, data: listings });
+    const result = await listingService.getFilteredListings(filters, page, limit, userId, guestLikedIds);
+    return res.status(200).json(result);
   } catch (err) {
     next(err)
   }

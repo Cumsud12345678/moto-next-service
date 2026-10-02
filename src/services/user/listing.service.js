@@ -88,13 +88,16 @@ const getFilteredListings = async (filters, page=1, limit=10, userId, guestLiked
   const skip = (page - 1) * limit
   const query = generateQuery(filters)
 
-  const listings = await Listing.find(query)
-    .select('-randomKey -boostRemainingCount -lastBoostedAt -urgentExpiresAt')
-    .sort({ randomKey: -1 })
-    .skip(skip)
-    .limit(limit)
-    .withCardRelations()
-    .lean()
+  const [listings, total] = await Promise.all([
+    Listing.find(query)
+      .select('-randomKey -boostRemainingCount -lastBoostedAt -urgentExpiresAt')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .withCardRelations()
+      .lean(),
+    Listing.countDocuments(query)
+  ]) 
 
   const listingIds = listings.map(l => l._id)
   let likedListingIds
@@ -106,10 +109,16 @@ const getFilteredListings = async (filters, page=1, limit=10, userId, guestLiked
     likedListingIds = new Set(guestLikedIds);
   }
 
-  return listings.map(l => ({
+  const data = listings.map(l => ({
     ...l,
     isLiked: likedListingIds.has(l._id.toString())
   }))
+
+  return {
+    success: true,
+    data,
+    total
+  }
 }
 
 // ELAN YARAT
