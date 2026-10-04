@@ -18,13 +18,9 @@ const getListing = async (req, res, next) => {
     const userId = req.user?.id;
     const guestLikedIds = parseGuestLikedIds(req.cookies?.guestLikedIds); // tək deyil, massiv
 
-    const listing = await listingService.getListing(listingId, userId, guestLikedIds);
+    const result = await listingService.getListing(listingId, userId, guestLikedIds);
 
-    if (!listing) {
-      return res.status(404).json({ success: false, message: 'Elan tapılmadı' });
-    }
-
-    return res.status(200).json({ success: true, data: listing });
+    return res.status(200).json(result);
   } catch (err) {
     next(err)
   }
@@ -39,9 +35,9 @@ const getUserListings = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'İstifadəçi tapılmadı' });
     }
 
-    const listings = await listingService.getUserListings(userId);
+    const result = await listingService.getUserListings(userId);
 
-    return res.status(200).json({ success: true, data: listings });
+    return res.status(200).json(result);
   } catch (err) {
     next(err)
   }
@@ -54,8 +50,8 @@ const getListings = async (req, res, next) => {
     const userId = req.user?.id;
     const guestLikedIds = parseGuestLikedIds(req.cookies?.guestLikedIds); // ✅
 
-    const listings = await listingService.getListings(page, limit, userId, guestLikedIds);
-    return res.status(200).json({ success: true, data: listings });
+    const result = await listingService.getListings(page, limit, userId, guestLikedIds);
+    return res.status(200).json(result)
   } catch (err) {
     next(err)
   }
@@ -96,46 +92,25 @@ const createListing = async (req, res, next) => {
   }
 };
 
-// ELANI GUNCELLE
 const updateListing = async (req, res, next) => {
   try {
     const userId = req.user?.id;
     const { listingId } = req.params;
-    
-    // Express req.body daxilində keepImageKeys gəlir
     const { keepImageKeys, ...data } = req.body;
     const newFiles = req.files || [];
-
+ 
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Giriş tələb olunur' });
     }
-
-    // 1. keepImageKeys məlumatını Massiv (Array) halına gətiririk
-    let formattedKeepImageKeys = [];
-
-    if (keepImageKeys) {
-      if (Array.isArray(keepImageKeys)) {
-        // Əgər multipart/form-data ilə birdən çox keepImageKeys gəlibsə: ['key1', 'key2']
-        formattedKeepImageKeys = keepImageKeys;
-      } else if (typeof keepImageKeys === 'string') {
-        try {
-          // Əgər JSON string olaraq göndərilibsə: '["key1", "key2"]'
-          formattedKeepImageKeys = JSON.parse(keepImageKeys);
-        } catch {
-          // Əgər tək bir string kimi gəlibsə: 'key1'
-          formattedKeepImageKeys = [keepImageKeys];
-        }
-      }
-    }
-
-    // 2. Servisi çağırırıq
+ 
     const result = await listingService.updateListing(
+      userId,            // <-- yeni: sahiblik yoxlanışı üçün
       listingId,
       data,
       newFiles,
-      formattedKeepImageKeys
+      keepImageKeys
     );
-
+ 
     return res.status(200).json(result);
   } catch (err) {
     next(err);
@@ -235,24 +210,24 @@ const getSimilarListings = async (req, res, next) => {
     const userId = req.user?.id
     const guestLikedIds = parseGuestLikedIds(req.cookies?.guestLikedIds)
 
-    const listing = await listingService.getListing(listingId, userId, guestLikedIds)
+    const result1 = await listingService.getListing(listingId, userId, guestLikedIds)
 
-    if (!listing) {
+    if (!result1.data) {
       return res.status(404).json({ success: false, message: 'Elan tapılmadı' });
     }
 
-    const similar = await listingService.getSimilarListings(
+    const result2 = await listingService.getSimilarListings(
       listingId,
       userId,
       guestLikedIds,
       {
-        make: listing.make._id,
-        model: listing.model._id,
-        price: listing.price
+        make: result1.data.make._id,
+        model: result1.data.model._id,
+        price: result1.data.price
       }
     )
 
-    res.status(200).json({ success: true, data: similar })
+    res.status(200).json(result2)
   } catch (err) {
     next(err)
   }

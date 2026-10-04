@@ -9,7 +9,6 @@ const listingSchema = new Schema({
   year: Number,
   volume: Number,
   category: { type: Schema.Types.ObjectId, ref: 'Category' },
-  used: { type: Boolean, default: false },
   color: { type: Schema.Types.ObjectId, ref: 'Color' },
   fuelType: { type: Schema.Types.ObjectId, ref: 'FuelType' },
   transmission: { type: Schema.Types.ObjectId, ref: 'Transmission' },
@@ -19,9 +18,13 @@ const listingSchema = new Schema({
   equipment: [{ type: Schema.Types.ObjectId, ref: 'Equipment' }],
   region: { type: Schema.Types.ObjectId, ref: 'City' },
   phone: Number,
+
+  // optional
+  used: { type: Boolean, default: false },
   barter: { type: Boolean, default: false },
   document: { type: Boolean, default: false },
   credit: { type: Boolean, default: false },
+  
   description: String,
   video: String,
   

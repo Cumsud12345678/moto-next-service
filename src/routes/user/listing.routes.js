@@ -21,6 +21,10 @@ import {
 // TODO: öz auth middleware faylının yolunu bura yaz
 import { optionalAuth } from "../../middlewares/optionalAuth.middleware.js";
 import { auth } from "../../middlewares/auth.middleware.js";
+import { validate } from "../../middlewares/validate.middleware.js";
+import { createListingSchema } from "../../validations/createListing.validation.js";
+import { updateListingSchema } from "../../validations/updateListing.validation.js";
+import validateFiles from "../../middlewares/validateFiles.middleware.js";
 
 // listing.routes.js
 const router = Router();
@@ -39,8 +43,8 @@ router.get("/:listingId", optionalAuth, getListing);   // ← indi bundan sonra 
 router.get("/expired/listing/update/:listingId", auth, updateExpiredListing)
 
 router.post("/click/:listingId", clickListing);
-router.post("/", auth, upload.array("images"), createListing);
-router.put("/:listingId", auth, upload.array("images"), updateListing);
+router.post("/", auth, upload.array("images", 10), validateFiles, validate(createListingSchema), createListing);
+router.put("/:listingId", auth, upload.array("images"), validate(updateListingSchema), updateListing);
 router.delete("/:listingId", auth, deleteListing);
 router.post("/:listingId/like", optionalAuth, toggleLike);
 

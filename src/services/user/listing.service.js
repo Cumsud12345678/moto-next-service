@@ -8,6 +8,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import r2 from "../../config/r2Client.js";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Adsense } from "../../models/advertising/adsense.model.js";
+import { formatListingDate } from "../../utils/dateFormatter.js";
 
 // 1 ELANI GETIR
 const getListing = async (listingId, userId, guestLikedIds = []) => {
@@ -30,7 +31,12 @@ const getListing = async (listingId, userId, guestLikedIds = []) => {
     isLiked = guestLikedIds.includes(listingId.toString());
   }
 
-  return { ...listing, isLiked };
+  const data = { ...listing, isLiked, createdAt: formatListingDate(listing.createdAt) };
+
+  return {
+    success: true,
+    data
+  }
 }
 
 // ISDIFADECININ ELANLARIN GETIR
@@ -44,10 +50,16 @@ const getUserListings = async (userId) => {
   const likes = await Like.find({ user: userId, listing: { $in: listingIds } })
   const likedListingIds = new Set(likes.map(l => l.listing.toString()))
 
-  return listings.map(l => ({
+  const data = listings.map(l => ({
     ...l,
-    isLiked: likedListingIds.has(l._id.toString())
+    isLiked: likedListingIds.has(l._id.toString()),
+    createdAt: formatListingDate(l.createdAt)
   }))
+
+  return {
+    success: true,
+    data
+  }
 }
 
 
@@ -57,7 +69,7 @@ const getListings = async (page = 1, limit = 10, userId, guestLikedIds) => {
   const skip = (page - 1) * limit
 
   const listings = await Listing.find({ status: 'active' })
-    .select('images document barter credit isUrgent price year volume mileage')
+    .select('images document barter credit isUrgent price year volume mileage createdAt')
     .sort({ isUrgent: -1, createdAt: -1 })
     .skip(skip)
     .limit(limit)
@@ -76,10 +88,16 @@ const getListings = async (page = 1, limit = 10, userId, guestLikedIds) => {
     likedListingIds = new Set(guestLikedIds);
   }
 
-  return listings.map(l => ({
+  const data = listings.map(l => ({
     ...l,
-    isLiked: likedListingIds.has(l._id.toString())
+    isLiked: likedListingIds.has(l._id.toString()),
+    createdAt: formatListingDate(l.createdAt)
   }));
+
+  return {
+    success: true,
+    data
+  }
 };
 
 
@@ -111,7 +129,8 @@ const getFilteredListings = async (filters, page=1, limit=10, userId, guestLiked
 
   const data = listings.map(l => ({
     ...l,
-    isLiked: likedListingIds.has(l._id.toString())
+    isLiked: likedListingIds.has(l._id.toString()),
+    createdAt: formatListingDate(l.createdAt)
   }))
 
   return {
@@ -180,62 +199,62 @@ const createListing = async (userId, data, files, listingId) => {
 };
 
 // ELANI GUNCELLE
-const updateListing = async (listingId, data, newFiles = [], keepImageKeys = []) => {
-  // keepImageKeys -> Front-end tərəfdən gələn, silinməyib saxlanılan köhnə şəkil key-ləri
-  
-  const listing = await Listing.findById(listingId);
+const updateListing = async (userId, listingId, data, newFiles = [], keepImageKeys = []) => {
+  // Yalnız elanın sahibi dəyişə bilər
+  const listing = await Listing.findOne({ _id: listingId, seller: userId });
   if (!listing) throw new Error('Elan tapılmadı');
-
-  const oldImageKeys = listing.images || []; // Bazadakı bütün köhnə şəkillər
+ 
+  const oldImageKeys = listing.images || [];
+  const oldVideo = listing.video || null;
+ 
+  // Client-dən gələn key-lərdən yalnız bu elana aid olanlar qəbul edilir
+  const safeKeepKeys = keepImageKeys.filter((key) => oldImageKeys.includes(key));
+ 
+  // R2-yə toxunmazdan ƏVVƏL şəkil sayını yoxlayırıq
+  const totalImages = safeKeepKeys.length + newFiles.length;
+  if (totalImages < 1) throw new Error('Ən azı 1 şəkil olmalıdır');
+  if (totalImages > 10) throw new Error('Maksimum 10 şəkil ola bilər');
+ 
   const newlyUploadedKeys = [];
-
+ 
   try {
-    // 1. Yeni yüklənən şəkilləri R2-yə vururuq (Unikal adlarla)
-    for (let i = 0; i < newFiles.length; i++) {
-      const file = newFiles[i];
+    // 1. Yeni şəkilləri R2-yə yüklə
+    for (const file of newFiles) {
       const key = generateStorageKey(listingId, file.originalname);
-
       await uploadToR2(file, key);
       newlyUploadedKeys.push(key);
     }
-
-    // 2. Yekun şəkil siyahısını hazırlayırıq (Saxlanılan köhnələr + Yeni yüklənənlər)
-    const updatedImages = [...keepImageKeys, ...newlyUploadedKeys];
-
-    // 3. Verilənlər bazasını yeniləyirik
+ 
+    // 2. Yekun siyahı
+    const updatedImages = [...safeKeepKeys, ...newlyUploadedKeys];
+ 
+    // 3. DB yenilənir
     const updatedListing = await Listing.findByIdAndUpdate(
       listingId,
-      {
-        ...data,
-        images: updatedImages,
-      },
+      { ...data, images: updatedImages },
       { returnDocument: 'after', runValidators: true }
     );
-
-    // 4. DB uğurla yeniləndi! İndi silinməli olan köhnə şəkilləri tapıb R2-dən silirik
-    const keysToDelete = oldImageKeys.filter(key => !keepImageKeys.includes(key));
-    if (keysToDelete.length > 0) {
-      await deleteManyFromR2(keysToDelete);
+ 
+    // 4. DB uğurlu oldu -> artıq lazım olmayan köhnə faylları sil
+    const keysToDelete = oldImageKeys.filter((key) => !safeKeepKeys.includes(key));
+    try {
+      if (keysToDelete.length > 0) await deleteManyFromR2(keysToDelete);
+      if (oldVideo && data.video && data.video !== oldVideo) await deleteFromR2(oldVideo);
+    } catch (cleanupErr) {
+      // Elan artıq yenilənib; təmizləmə xətası istifadəçiyə xəta kimi qayıtmamalıdır
+      console.error('R2 old files cleanup failed:', cleanupErr);
     }
-
-    return {
-      success: true,
-      message: 'Elan güncəlləndi',
-      data: updatedListing,
-    };
-
+ 
+    return { success: true, message: 'Elan güncəlləndi', data: updatedListing };
   } catch (err) {
-    // Əgər DB yenilənməsində və ya başqa yerdə XƏTA çıxsa:
-    // Yalnız YENİ yüklənən şəkilləri R2-dən silirik ki, köhnələr zərər görməsin!
-    if (newlyUploadedKeys.length > 0) {
-      try {
-        await deleteManyFromR2(newlyUploadedKeys);
-        if(listing.video && data.video !== listing.video) await deleteFromR2(listing.video)
-      } catch (cleanupErr) {
-        console.error('R2 cleanup failed during update:', cleanupErr);
-      }
+    // XƏTA: yalnız bu sorğuda yaradılan faylları sil, köhnələrə toxunma
+    try {
+      if (newlyUploadedKeys.length > 0) await deleteManyFromR2(newlyUploadedKeys);
+      // Yeni yüklənmiş video (köhnə yox!) yetim qalmasın
+      if (data.video && data.video !== oldVideo) await deleteFromR2(data.video);
+    } catch (cleanupErr) {
+      console.error('R2 cleanup failed during update:', cleanupErr);
     }
-
     throw err;
   }
 };
@@ -364,7 +383,7 @@ const getMyLikedListings = async (userId, guestLikedIds) => {
   return liked
 }
 
-// listing.service.js
+// SIMILAR LISTINGS
 const getSimilarListings = async (currentListingId, userId, guestLikedIds, filters, limit = 12) => {
   const { make, model, price } = filters
 
@@ -425,10 +444,16 @@ const getSimilarListings = async (currentListingId, userId, guestLikedIds, filte
     likedListingIds = new Set(guestLikedIds)
   }
 
-  return combined.map(l => ({
+  const data = combined.map(l => ({
     ...l,
-    isLiked: likedListingIds.has(l._id.toString())
+    isLiked: likedListingIds.has(l._id.toString()),
+    createdAt: formatListingDate(l.createdAt)
   }))
+
+  return {
+    success: true,
+    data
+  }
 }
 
 const createUrlVideo = async (id) => {

@@ -92,7 +92,10 @@ const loginVerify = async (req, res, next) => {
 const absoluteVerifyStart = async (req, res, next) => {
   try{
     const email = req.body.email;
-    // const name = req.body.name || null;
+    if(!email || email.length < 5) {
+      console.log('a')
+      return res.status(403).json({ success: false, message: 'Xahiş olunur düzgün email daxil edin.' })
+    }
 
     const result = await authService.absoluteVerifyStart(email)
     res.status(200).json(result) // message, success
@@ -107,6 +110,10 @@ const absoluteVerifyEnd = async (req, res, next) => {
     const name = req.body.name || null;
     const otp = req.body.otp;
     const ip = req.ip;
+
+    if(!email || email.length < 5) {
+      return res.status(403).json({ success: false, message: 'Məlumatlar əksikdir.' })
+    }
 
     const result = await authService.absoluteVerifyEnd(email, name, otp, ip)
     
