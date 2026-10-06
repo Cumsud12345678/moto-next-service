@@ -344,8 +344,6 @@ const absoluteVerifyEnd = async (email, name, otp, ip) => {
 
   const absoluteLoginData = JSON.parse(data);
 
-  console.log(`userin gonderdiyi: ${otp}, redisde olan: ${absoluteLoginData.otp}`)
-
   // 3. OTP Kodunu yoxlayırıq
   if (otp !== absoluteLoginData.otp) {
     const error = new Error('Təsdiqləmə kodu yanlışdır');

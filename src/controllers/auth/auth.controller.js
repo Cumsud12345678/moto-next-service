@@ -93,7 +93,6 @@ const absoluteVerifyStart = async (req, res, next) => {
   try{
     const email = req.body.email;
     if(!email || email.length < 5) {
-      console.log('a')
       return res.status(403).json({ success: false, message: 'Xahiş olunur düzgün email daxil edin.' })
     }
 

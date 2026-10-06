@@ -35,8 +35,6 @@ const createMakeAndModel = async (file, makeLabel, modelLabels) => {
 
   const key = `metadata/${unique}.${extension}`
 
-  console.log(modelLabels)
-
   try{
     await uploadToR2(file, key)
 

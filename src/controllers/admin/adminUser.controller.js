@@ -18,8 +18,6 @@ const getFilteredUsers = async (req, res, next) => {
     const limit = parseInt(req.query.limit) || 10;
     const filters = req.query
 
-    console.log(filters)
-
     const { users, total } = await adminUserService.getFilteredUsers(filters, page, limit)
     res.status(200).json({ success: true, data: users, total })
   }catch(err) {
@@ -56,8 +54,6 @@ const warningUser = async (req, res, next) => {
   try{
     const userId = req.params.userId
     const message = req.body.reasons
-
-    console.log(message)
 
     const result = await adminUserService.warningUser(userId, message)
     res.status(200).json(result)

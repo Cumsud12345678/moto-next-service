@@ -15,8 +15,6 @@ const createMakeAndModel = async (req, res, next) => {
     const makeLabel = req.body.makeLabel;
     const modelLabels = JSON.parse(req.body.modelLabels || '[]');
 
-    console.log(file)
-
     const result = await metadataService.createMakeAndModel(file, makeLabel, modelLabels)
 
     res.status(200).json(result)

@@ -196,8 +196,8 @@ const getMyLikedListings = async (req, res, next) => {
     const userId = req.user?.id
     const guestLikedIds = parseGuestLikedIds(req.cookies?.guestLikedIds); // ✅
 
-    const data = await listingService.getMyLikedListings(userId, guestLikedIds)
-    res.status(200).json({ success: true, data: data })
+    const result = await listingService.getMyLikedListings(userId, guestLikedIds)
+    res.status(200).json(result)
   } catch (err) {
     next(err)
   }

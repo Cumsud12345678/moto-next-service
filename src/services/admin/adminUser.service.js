@@ -29,7 +29,6 @@ const getAllUsers = async (page = 1, limit = 10) => {
 const getFilteredUsers = async (filters, page, limit) => {
   const query = generateQuery(filters)
 
-  console.log(query)
   const [users, total] = await Promise.all([
     User.find(query)
       .sort({ createdAt: -1 })

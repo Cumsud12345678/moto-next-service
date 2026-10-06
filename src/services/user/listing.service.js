@@ -76,8 +76,6 @@ const getListings = async (page = 1, limit = 10, userId, guestLikedIds) => {
     .withCardRelations()
     .lean();
 
-  console.log(listings.length)
-
   const listingIds = listings.map(l => l._id);
   let likedListingIds;
 
@@ -349,38 +347,50 @@ const adjustLikedCount = async (listingId, delta) => {
 const getMyLikedListings = async (userId, guestLikedIds) => {
   let liked
 
-  if(userId) {
+  if (userId) {
     const likes = await Like.find({ user: userId })
       .sort({ createdAt: -1 })
       .populate({
         path: 'listing',
         select: '-randomKey -boostRemainingCount -lastBoostedAt -urgentExpiresAt',
         populate: [
-          {
-            path: 'make'
-          },
-          {
-            path: 'model'
-          },
-          {
-            path: 'region'
-          }
+          { path: 'make' },
+          { path: 'model' },
+          { path: 'region' }
         ]
       })
       .lean()
 
-    liked = likes.map(like => like.listing).filter(Boolean);
-  }else {
-    const listings = await Listing.find({_id: { $in: guestLikedIds }})
+    liked = likes
+      .map(like => like.listing)
+      .filter(Boolean)
+
+  } else {
+    const listings = await Listing.find({
+      _id: { $in: guestLikedIds }
+    })
       .withCardRelations()
       .lean()
 
-    // guestLikedIds-in sırasını qoruyuruq (frontend-in göndərdiyi bəyənmə sırası)
-    const listingMap = new Map(listings.map(l => [l._id.toString(), l]));
-    liked = guestLikedIds.map(id => listingMap.get(id)).filter(Boolean);
+    const listingMap = new Map(
+      listings.map(l => [l._id.toString(), l])
+    )
+
+    liked = guestLikedIds
+      .map(id => listingMap.get(id))
+      .filter(Boolean)
   }
 
-  return liked
+  // createdAt formatla
+  liked = liked.map(listing => ({
+    ...listing,
+    createdAt: formatListingDate(listing.createdAt)
+  }))
+
+  return {
+    success: true,
+    data: liked
+  }
 }
 
 // SIMILAR LISTINGS
