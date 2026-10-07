@@ -5,6 +5,7 @@ import { Listing } from "../../models/listing/listing.model.js"
 import { Message } from "../../models/interaction/message.model.js"
 import { User } from "../../models/user/user.model.js"
 import { Like } from "../../models/interaction/like.model.js"
+import { deleteFromR2, deleteManyFromR2 } from "../storage.service.js"
 
 // BUTUN ELANLARI GETIR
 const getAllListings = async (page = 1, limit = 10) => {

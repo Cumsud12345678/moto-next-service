@@ -1,12 +1,25 @@
 import adminUserService from "../../services/admin/adminUser.service.js";
 
+// page >= 1, limit 1..100 (çox böyük limit göndərib serveri yormasın)
+const parsePagination = (query) => {
+  const page = Math.max(parseInt(query.page) || 1, 1)
+  const limit = Math.min(Math.max(parseInt(query.limit) || 10, 1), 100)
+  return { page, limit }
+}
+
 const getAllUsers = async (req, res, next) => {
   try{
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const { page, limit } = parsePagination(req.query)
 
     const { users, total } = await adminUserService.getAllUsers(page, limit)
-    res.status(200).json({ success: true, data: users, total })
+    res.status(200).json({
+      success: true,
+      data: users,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(Math.ceil(total / limit), 1)
+    })
   }catch(err) {
     next(err)
   }
@@ -14,28 +27,22 @@ const getAllUsers = async (req, res, next) => {
 
 const getFilteredUsers = async (req, res, next) => {
   try{
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const { page, limit } = parsePagination(req.query)
     const filters = req.query
 
     const { users, total } = await adminUserService.getFilteredUsers(filters, page, limit)
-    res.status(200).json({ success: true, data: users, total })
+    res.status(200).json({
+      success: true,
+      data: users,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(Math.ceil(total / limit), 1)
+    })
   }catch(err) {
     next(err)
   }
 }
-
-// const getUser = async (req, res, next) => {
-//   try{
-//     const userId = req.body.id || null;
-//     const email = req.body.email;
-
-//     const user = await adminUserService.getUser(userId, email)
-//     res.status(200).json({ success: true, data: user })
-//   }catch(err) {
-//     next(err)
-//   }
-// }
 
 const deleteUser = async (req, res, next) => {
   try{
@@ -110,20 +117,31 @@ const editUserRole = async (req, res, next) => {
 
 
 // DELETED USERS LE BAQLI
-const getDeletedUsers = async () => {
-  const page = parseInt(req.params.page) || 1;
-  const limit = parseInt(req.params.limit) || 10;
+// (əvvəl req, res, next parametrləri yox idi və try/catch yox idi;
+//  page/limit də req.params-dan oxunurdu, düzgünü req.query-dir)
+const getDeletedUsers = async (req, res, next) => {
+  try{
+    const { page, limit } = parsePagination(req.query)
 
-  const { deletedUsers, total } = await adminUserService.getDeletedUsers(page, limit);
+    const { deletedUsers, total } = await adminUserService.getDeletedUsers(page, limit)
 
-  res.status(200).json({ success: true, data: deletedUsers, total })
+    res.status(200).json({
+      success: true,
+      data: deletedUsers,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(Math.ceil(total / limit), 1)
+    })
+  }catch(err) {
+    next(err)
+  }
 }
 
 
 export {
   getAllUsers,
   getFilteredUsers,
-  // getUser,
   deleteUser,
   warningUser,
   resetWarningUser,

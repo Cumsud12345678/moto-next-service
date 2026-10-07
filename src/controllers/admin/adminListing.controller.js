@@ -1,13 +1,26 @@
 import adminListingService from "../../services/admin/adminListing.service.js";
 
+// page >= 1, limit 1..100
+const parsePagination = (query) => {
+  const page = Math.max(parseInt(query.page) || 1, 1)
+  const limit = Math.min(Math.max(parseInt(query.limit) || 10, 1), 100)
+  return { page, limit }
+}
+
+const paginationMeta = (total, page, limit) => ({
+  total,
+  page,
+  limit,
+  totalPages: Math.max(Math.ceil(total / limit), 1)
+})
+
 const getAllListings = async (req, res, next) => {
   try{
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const { page, limit } = parsePagination(req.query)
 
     const { listings, total } = await adminListingService.getAllListings(page, limit)
 
-    res.status(200).json({ success: true, data: listings, total })
+    res.status(200).json({ success: true, data: listings, ...paginationMeta(total, page, limit) })
   }catch(err) {
     next(err)
   }
@@ -15,13 +28,12 @@ const getAllListings = async (req, res, next) => {
 
 const getFilteredListings = async (req, res, next) => {
   try{
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const { page, limit } = parsePagination(req.query)
     const filters = req.query
 
     const { listings, total } = await adminListingService.getFilteredListings(filters, page, limit)
 
-    res.status(200).json({ success: true, data: listings, total })
+    res.status(200).json({ success: true, data: listings, ...paginationMeta(total, page, limit) })
   }catch(err) {
     next(err)
   }
@@ -43,12 +55,11 @@ const getUserListings = async (req, res, next) => {
 // PREMIUM ELANLARI GETIR
 const getUrgentListings = async (req, res, next) => {
   try{
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const { page, limit } = parsePagination(req.query)
 
     const { urgentListings, total } = await adminListingService.getUrgentListings(page, limit)
 
-    res.status(200).json({ success: true, data: urgentListings, total })
+    res.status(200).json({ success: true, data: urgentListings, ...paginationMeta(total, page, limit) })
   }catch(err) {
     next(err)
   }
@@ -112,18 +123,17 @@ const setStatusListing = async (req, res, next) => {
 }
 
 
-
-// SILINMIS ELANLARLA BAQLI 
+// SILINMIS ELANLARLA BAQLI
 
 // SILINMIS ELANLARI GETIR
-const getDeletedListings = async () => {
+// (əvvəl req, res, next parametrləri yox idi, ona görə ReferenceError verirdi)
+const getDeletedListings = async (req, res, next) => {
   try{
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const { page, limit } = parsePagination(req.query)
 
     const { deletedListings, total } = await adminListingService.getDeletedListings(page, limit)
 
-    res.status(200).json({ success: true, data: deletedListings, total })
+    res.status(200).json({ success: true, data: deletedListings, ...paginationMeta(total, page, limit) })
   }catch(err) {
     next(err)
   }
@@ -141,4 +151,3 @@ export {
   setStatusListing,
   getDeletedListings
 }
-

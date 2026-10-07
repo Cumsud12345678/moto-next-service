@@ -352,6 +352,7 @@ const getMyLikedListings = async (userId, guestLikedIds) => {
       .sort({ createdAt: -1 })
       .populate({
         path: 'listing',
+        match: { status: 'active' },
         select: '-randomKey -boostRemainingCount -lastBoostedAt -urgentExpiresAt',
         populate: [
           { path: 'make' },
@@ -367,7 +368,8 @@ const getMyLikedListings = async (userId, guestLikedIds) => {
 
   } else {
     const listings = await Listing.find({
-      _id: { $in: guestLikedIds }
+      _id: { $in: guestLikedIds },
+      status: 'active'
     })
       .withCardRelations()
       .lean()

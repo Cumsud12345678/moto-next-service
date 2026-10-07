@@ -5,6 +5,7 @@ import { Listing } from "../../models/listing/listing.model.js"
 import { Message } from "../../models/interaction/message.model.js"
 import { User } from "../../models/user/user.model.js"
 import { Like } from "../../models/interaction/like.model.js"
+import { deleteManyFromR2 } from "../storage.service.js"
 
 const getAllUsers = async (page = 1, limit = 10) => {
   const skip = (page - 1) * limit
@@ -242,13 +243,13 @@ const getDeletedUsers = async (page = 1, limit = 10) => {
   const skip = (page - 1) * limit;
 
   const [deletedUsers, total] = await Promise.all([
-    DeletedListing.find()
+    DeletedUser.find()
       .populate('deletedBy')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
-    DeletedListing.countDocuments()
+    DeletedUser.countDocuments()
   ])
 
   return {
