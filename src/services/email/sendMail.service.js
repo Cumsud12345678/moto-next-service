@@ -25,7 +25,7 @@ const otpEmailTemplate = (otp, purpose = 'qeydiyyat') => `
 
 const sendOtpEmail = async (to, otp, purpose = 'register') => {
   const { data, error } = await resend.emails.send({
-    from: `${FROM_NAME} <${FROM_EMAIL}`,
+    from: `${FROM_NAME} <${FROM_EMAIL}>`,
     to: [to],
     subject: purpose === 'login' ? 'Giriş təsdiq kodu' : 'Qeydiyyat təsdiq kodu',
     html: otpEmailTemplate(otp, purpose),
