@@ -497,7 +497,7 @@ const createUrlVideo = async (id) => {
   }
 }
 
-const clickListing = async (listingId = null) => {
+const clickListing = async (listingId) => {
   const listing = await Listing.findById(listingId)
   if (!listing) throw new Error('Elan tapilmadi');
 
