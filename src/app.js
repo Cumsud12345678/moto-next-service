@@ -30,7 +30,8 @@ dotenv.config();
 const allowedOrigins = [
   'https://moto-next.vercel.app',
   'http://localhost:3000',
-  'https://motoelan.com'
+  'https://motoelan.com',
+  'https://www.motoelan.com'
 ];
 
 app.use(cors({
