@@ -3,7 +3,7 @@ import { Resend } from 'resend';
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = process.env.MAIL_FROM
-const FROM_NAME = 'Motoelan Test'
+const FROM_NAME = process.env.MAIL_FROM_NAME || 'Motoelan'
 
 const otpEmailTemplate = (otp, purpose = 'qeydiyyat') => `
   <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background:#f9fafb; border-radius:12px;">
@@ -25,11 +25,11 @@ const otpEmailTemplate = (otp, purpose = 'qeydiyyat') => `
 
 const sendOtpEmail = async (to, otp, purpose = 'register') => {
   const { data, error } = await resend.emails.send({
-    from: `onboarding@resend.dev`,
+    from: `${FROM_NAME} <${FROM_EMAIL}`,
     to: [to],
     subject: purpose === 'login' ? 'Giriş təsdiq kodu' : 'Qeydiyyat təsdiq kodu',
     html: otpEmailTemplate(otp, purpose),
-    text: `Təsdiq kodunuz: ${otp}\n\nBu kod 2 dəqiqə ərzində etibarlıdır. Əgər bu tələbi siz etməmisinizsə, bu emaili nəzərə almayın.`
+    text: `Təsdiq kodunuz: ${otp}\n\nBu kod 5 dəqiqə ərzində etibarlıdır. Əgər bu tələbi siz etməmisinizsə, bu emaili nəzərə almayın.`
   })
 
   if (error) {
