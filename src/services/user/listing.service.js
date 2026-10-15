@@ -9,6 +9,7 @@ import r2 from "../../config/r2Client.js";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Adsense } from "../../models/advertising/adsense.model.js";
 import { formatListingDate } from "../../utils/dateFormatter.js";
+import { processImage } from "../image.service.js";
 
 // 1 ELANI GETIR
 const getListing = async (listingId, userId, guestLikedIds = []) => {
@@ -149,17 +150,26 @@ const createListing = async (userId, data, files, listingId) => {
 
   try {
     
-    if(!listingId) newListingId = new mongoose.Types.ObjectId()
+    if(!listingId) newListingId = new mongoose.Types.ObjectId();
 
-    // 1. Şəkilləri R2-yə yükləyirik
+    // 1. Şəkilləri emal edib R2-yə yükləyirik
     for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+      const processed = await processImage(files[i]);
+      const key = generateStorageKey(newListingId);
 
-      const key = generateStorageKey(newListingId, file.originalname)
-      
-      await uploadToR2(file, key);
+      await uploadToR2(processed, key);
       uploadedKeys.push(key);
     }
+
+    // 1. Şəkilləri R2-yə yükləyirik
+    // for (let i = 0; i < files.length; i++) {
+    //   const file = files[i];
+
+    //   const key = generateStorageKey(newListingId, file.originalname)
+      
+    //   await uploadToR2(file, key);
+    //   uploadedKeys.push(key);
+    // }
 
     // 2. Bazada elan yaradırıq
     const listing = await Listing.create([{
@@ -216,10 +226,18 @@ const updateListing = async (userId, listingId, data, newFiles = [], keepImageKe
   const newlyUploadedKeys = [];
  
   try {
+    
+    // for (const file of newFiles) {
+    //   const key = generateStorageKey(listingId, file.originalname);
+    //   await uploadToR2(file, key);
+    //   newlyUploadedKeys.push(key);
+    // }
+
     // 1. Yeni şəkilləri R2-yə yüklə
     for (const file of newFiles) {
-      const key = generateStorageKey(listingId, file.originalname);
-      await uploadToR2(file, key);
+      const processed = await processImage(file);
+      const key = generateStorageKey(listingId);
+      await uploadToR2(processed, key);
       newlyUploadedKeys.push(key);
     }
  
@@ -593,10 +611,8 @@ const generateQuery = (filters) => {
   return query;
 }
 
-const generateStorageKey = (listingId, originalname) => {
-  const extension = originalname.split('.').pop()?.toLowerCase() || 'webp';
-  const uniqueId = crypto.randomUUID(); // və ya Date.now()
-  return `listings/${listingId}/${uniqueId}.${extension}`
+const generateStorageKey = (listingId) => {
+  return `listings/${listingId}/${crypto.randomUUID()}.webp`
 }
 
 const migrateGuestLikes = async (userId, listingIds) => {

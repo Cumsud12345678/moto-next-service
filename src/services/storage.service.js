@@ -9,16 +9,14 @@ import r2 from "../config/r2Client.js";
 const BUCKET = process.env.R2_BUCKET_NAME;
 
 // Tək şəkil upload
-const uploadToR2 = async (
-  file,
-  key
-) => {
+const uploadToR2 = async (file, key) => {
   await r2.send(
     new PutObjectCommand({
       Bucket: BUCKET,
       Key: key,
       Body: file.buffer,
       ContentType: file.mimetype,
+      CacheControl: 'public, max-age=31536000, immutable',
     })
   );
 
