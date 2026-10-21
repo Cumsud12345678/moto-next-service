@@ -1,5 +1,18 @@
 import authService from '../../services/auth/auth.service.js'
 import listingService from '../../services/user/listing.service.js';
+import jwt from 'jsonwebtoken'
+import { redis } from '../../config/redis.config.js'
+
+// guestLikedIds cookie zədəlidirsə JSON.parse bütün login-i 500-ə salmasın
+const parseGuestLikedIds = (raw) => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
 
 const registerStart = async (req, res, next) => {
   try{
@@ -125,12 +138,15 @@ const absoluteVerifyEnd = async (req, res, next) => {
     });
 
     // login uğurlu olandan sonra
-    const guestLikedIds = req.cookies?.guestLikedIds
-      ? JSON.parse(req.cookies.guestLikedIds)
-      : [];
+    const guestLikedIds = parseGuestLikedIds(req.cookies?.guestLikedIds);
 
     if (guestLikedIds.length > 0) {
-      await listingService.migrateGuestLikes(result.userId, guestLikedIds);
+      try {
+        await listingService.migrateGuestLikes(result.userId, guestLikedIds);
+      } catch (e) {
+        // bəyənmələrin köçürülməsi alınmasa belə giriş uğurlu sayılmalıdır
+        console.error('migrateGuestLikes xətası:', e.message);
+      }
       res.clearCookie('guestLikedIds');
     }
     

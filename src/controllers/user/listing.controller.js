@@ -1,4 +1,5 @@
 import listingService from '../../services/user/listing.service.js'
+import { redis } from '../../config/redis.config.js'
 
 // listing.controller.js — faylın yuxarısına əlavə et
 const parseGuestLikedIds = (raw) => {
@@ -83,10 +84,44 @@ const createListing = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Giriş tələb olunur' });
     }
 
-    // Bütün biznes məntiqi servisə ötürülür
-    const result = await listingService.createListing(userId, data, files, listingId);
+    // --- Dublikat elanın qarşısı ---
+    // 1) Idempotency-Key: frontend hər elan forması üçün bir açar göndərir.
+    //    Eyni açarla ikinci sorğu gəlsə, yeni elan yaradılmır, əvvəlki qaytarılır.
+    const idemHeader = String(req.get('Idempotency-Key') || '').slice(0, 100)
+    const idemKey = idemHeader ? `listing-idem:${userId}:${idemHeader}` : null
 
-    return res.status(201).json(result);
+    if (idemKey) {
+      const existingId = await redis.get(idemKey)
+      if (existingId) {
+        return res.status(200).json({
+          success: true,
+          message: 'Elan artıq yaradılıb',
+          data: { _id: existingId },
+          duplicate: true
+        })
+      }
+    }
+
+    // 2) İstifadəçi başına kilid: eyni istifadəçinin eyni anda 2 elan sorğusu emal olunmasın
+    //    (köhnə frontend versiyası və ya açarsız sorğular üçün də qoruyur)
+    const lockKey = `listing-create-lock:${userId}`
+    const locked = await redis.set(lockKey, '1', { NX: true, EX: 120 })
+    if (!locked) {
+      return res.status(409).json({ success: false, message: 'Elan artıq göndərilir, gözləyin' })
+    }
+
+    try {
+      // Bütün biznes məntiqi servisə ötürülür
+      const result = await listingService.createListing(userId, data, files, listingId);
+
+      if (idemKey && result?.data?._id) {
+        await redis.set(idemKey, String(result.data._id), { EX: 600 })
+      }
+
+      return res.status(201).json(result);
+    } finally {
+      await redis.del(lockKey)
+    }
   } catch (err) {
     next(err);
   }

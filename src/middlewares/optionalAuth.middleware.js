@@ -10,11 +10,10 @@ const optionalAuth = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET)
     const user = await User.findById(decoded.id).select('-password')
 
+    // bloklanmış istifadəçi giriş etmiş sayılmasın (əvvəl ikinci sətir bunu ləğv edirdi)
     if (user && !user.isLocked) {
       req.user = user
     }
-
-    req.user = user
 
     next()
   } catch (err) {
