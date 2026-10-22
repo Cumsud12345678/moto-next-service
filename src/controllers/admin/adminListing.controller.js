@@ -109,6 +109,15 @@ const setUrgentListing = async (req, res, next) => {
 
 
 // ELANIN STATUSUNU DEYIS
+const removeUrgentListing = async (req, res, next) => {
+  try {
+    const result = await adminListingService.removeUrgentListing(req.params.listingId)
+    res.status(200).json(result)
+  } catch (err) {
+    next(err)
+  }
+}
+
 const setStatusListing = async (req, res, next) => {
   try{
     const listingId = req.params.listingId
@@ -148,6 +157,7 @@ export {
   getListing,
   deleteListing,
   setUrgentListing,
+  removeUrgentListing,
   setStatusListing,
   getDeletedListings
 }

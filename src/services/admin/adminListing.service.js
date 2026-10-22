@@ -167,6 +167,25 @@ const setUrgentListing = async (listingId, day) => {
 }
 
 
+// PREMIUMU LEGV ET
+const removeUrgentListing = async (listingId) => {
+  const result = await Listing.updateOne(
+    { _id: listingId },
+    { $set: { isUrgent: false }, $unset: { urgentActiveAt: 1, urgentExpiresAt: 1 } }
+  )
+
+  if (result.matchedCount === 0) {
+    const error = new Error('Elan tapılmadı')
+    error.statusCode = 404
+    throw error
+  }
+
+  return {
+    success: true,
+    message: 'Premium ləğv edildi'
+  }
+}
+
 // ELANIN STATUSUNU DEYIS
 const setStatusListing = async (listingId, status) => {
   const listing = await Listing.findById(listingId)
@@ -254,7 +273,7 @@ const getDeletedListings = async (page = 1, limit = 10) => {
   const skip = (page - 1) * limit
   const [deletedListings, total] = await Promise.all([
     DeletedListing.find()
-      .populate('deletedBy')
+      .populate('deletedBy', '_id name email role')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -282,6 +301,7 @@ export default {
   getListing,
   deleteListing,
   setUrgentListing,
+  removeUrgentListing,
   setStatusListing,
   getDeletedListings
 }

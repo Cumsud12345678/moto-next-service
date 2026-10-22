@@ -244,7 +244,7 @@ const getDeletedUsers = async (page = 1, limit = 10) => {
 
   const [deletedUsers, total] = await Promise.all([
     DeletedUser.find()
-      .populate('deletedBy')
+      .populate('deletedBy', '_id name email role')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)

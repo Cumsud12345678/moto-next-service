@@ -8,6 +8,7 @@ import {
   getListing,
   deleteListing,
   setUrgentListing,
+  removeUrgentListing,
   setStatusListing,
   getDeletedListings
 } from '../../controllers/admin/adminListing.controller.js'
@@ -24,6 +25,7 @@ router.get('/deleted', getDeletedListings)
 router.get('/:listingId', getListing)
 router.delete('/:listingId', deleteListing)
 router.put('/urgent/:listingId', setUrgentListing)
+router.delete('/urgent/:listingId', removeUrgentListing)
 router.put('/edit/status/:listingId', setStatusListing)
 
 export default router

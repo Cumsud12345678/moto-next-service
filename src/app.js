@@ -20,6 +20,7 @@ import adsenseRoutes from './routes/admin/adsense.routes.js'
 import makeRequestRoutes from './routes/metadata/makeRequest.routes.js'
 import adminMakeRequestRoutes from './routes/admin/makeRequest.routes.js'
 import adminErrorLogRoutes from './routes/admin/errorLog.routes.js'
+import adminStatsRoutes from './routes/admin/stats.routes.js'
 import { logError } from './services/system/errorLog.service.js'
 
 import { admin } from './middlewares/admin.middleware.js';
@@ -76,6 +77,7 @@ app.use('/api/admin/users', admin, adminUserRoutes)
 app.use('/api/admin/listings', admin, adminListingRoutes)
 app.use('/api/admin/make-requests', admin, adminMakeRequestRoutes)
 app.use('/api/admin/error-logs', admin, adminErrorLogRoutes)
+app.use('/api/admin/stats', admin, adminStatsRoutes)
 
 app.use(errorMiddleware);
 
