@@ -17,6 +17,10 @@ import adminUserRoutes from './routes/admin/adminUser.routes.js'
 import adminListingRoutes from './routes/admin/adminListing.routes.js'
 import groupRoutes from './routes/admin/group.routes.js'
 import adsenseRoutes from './routes/admin/adsense.routes.js'
+import makeRequestRoutes from './routes/metadata/makeRequest.routes.js'
+import adminMakeRequestRoutes from './routes/admin/makeRequest.routes.js'
+import adminErrorLogRoutes from './routes/admin/errorLog.routes.js'
+import { logError } from './services/system/errorLog.service.js'
 
 import { admin } from './middlewares/admin.middleware.js';
 
@@ -43,7 +47,9 @@ app.use(cors({
     if (isAllowed) {
       callback(null, true);
     } else {
-      callback(new Error('CORS icazəsi yoxdur: ' + origin));
+      const error = new Error('CORS icazəsi yoxdur: ' + origin)
+      error.statusCode = 403 // 500 deyil: bu server xətası deyil, loqlanmasın
+      callback(error);
     }
   },
   credentials: true
@@ -64,11 +70,30 @@ app.use('/api/metadata', metadataRoutes)
 app.use('/api/groups', groupRoutes)
 app.use('/api/adsense', adsenseRoutes)
 app.use('/api/messages', messageRoutes)
+app.use('/api/make-requests', makeRequestRoutes)
 
 app.use('/api/admin/users', admin, adminUserRoutes)
 app.use('/api/admin/listings', admin, adminListingRoutes)
+app.use('/api/admin/make-requests', admin, adminMakeRequestRoutes)
+app.use('/api/admin/error-logs', admin, adminErrorLogRoutes)
 
 app.use(errorMiddleware);
+
+// Express-dən kənarda baş verən xətalar (await edilməmiş promise-lər, cron və s.)
+process.on('unhandledRejection', (reason) => {
+  console.error('unhandledRejection:', reason)
+  const err = reason instanceof Error ? reason : new Error(String(reason))
+  logError(err, { source: 'process', context: 'unhandledRejection', statusCode: 500 })
+})
+
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException:', err)
+  // Proses qeyri-sabit vəziyyətdədir: loqu yazıb çıxırıq, Render serveri yenidən başladır
+  Promise.race([
+    logError(err, { source: 'process', context: 'uncaughtException', statusCode: 500 }),
+    new Promise((r) => setTimeout(r, 3000)),
+  ]).finally(() => process.exit(1))
+})
 
 const startServer = async () => {
   await connectDB()

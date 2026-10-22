@@ -40,6 +40,47 @@ const sendOtpEmail = async (to, otp, purpose = 'register') => {
   return data
 }
 
+const escapeHtml = (str) => String(str ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+
+/**
+ * İstifadəçinin istədiyi marka/model sayta əlavə olunanda xəbər verir
+ * @param {string} to
+ * @param {string} text - istifadəçinin yazdığı marka/model
+ */
+const sendMakeAddedEmail = async (to, text) => {
+  const siteUrl = process.env.SITE_URL || 'https://motoelan.com'
+  const safeText = escapeHtml(text)
+
+  const { data, error } = await resend.emails.send({
+    from: `${FROM_NAME} <${FROM_EMAIL}>`,
+    to: [to],
+    subject: `${String(text).slice(0, 60)} sayta əlavə olundu`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background:#f9fafb; border-radius:12px;">
+        <h2 style="color:#111827; margin-bottom:8px;">Sorğunuz yerinə yetirildi</h2>
+        <p style="color:#4b5563; font-size:14px;">
+          İstədiyiniz <b>${safeText}</b> artıq Motoelan-da var. İndi elanınızı yerləşdirə bilərsiniz.
+        </p>
+        <p style="text-align:center; padding:16px 0;">
+          <a href="${siteUrl}/new" style="background:#3b82f6; color:#fff; padding:12px 24px; border-radius:8px; text-decoration:none;">Elan yerləşdir</a>
+        </p>
+      </div>
+    `,
+    text: `İstədiyiniz "${text}" artıq Motoelan-da var. Elan yerləşdirmək üçün: ${siteUrl}/new`,
+  })
+
+  if (error) {
+    throw new Error('Email göndərilə bilmədi: ' + (error.message || JSON.stringify(error)))
+  }
+
+  return data
+}
+
 export {
-  sendOtpEmail
+  sendOtpEmail,
+  sendMakeAddedEmail
 }
