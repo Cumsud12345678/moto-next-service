@@ -8,7 +8,9 @@ import {
   updateModel,
   deleteModel,
   createBasicMetadata,
-  deleteBasicMetadata
+  updateBasicMetadata,
+  deleteBasicMetadata,
+  getUsage
 } from '../controllers/metadata.controller.js'
 
 import upload from "../middlewares/upload.middleware.js";
@@ -18,6 +20,9 @@ const router = express.Router()
 
 // Oxumaq hamıya açıqdır (elan əlavə edərkən lazımdır)
 router.get('/', getMetadata)
+
+// Hər dəyərin neçə elanda istifadə olunduğu (yalnız admin)
+router.get('/usage', admin, getUsage)
 
 // Yazma əməliyyatları yalnız admin üçün
 router.post('/make-and-model', admin, upload.single('logo'), createMakeAndModel)
@@ -29,6 +34,7 @@ router.put('/model/:modelId', admin, updateModel)
 router.delete('/model/:modelId', admin, deleteModel)
 
 router.post('/', admin, createBasicMetadata)
+router.put('/', admin, updateBasicMetadata)
 router.delete('/', admin, deleteBasicMetadata)
 
 export default router

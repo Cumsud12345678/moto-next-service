@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { 
+import {
+  getActiveAdsense,
   getAllAdsense,
   createAdsense,
   clickAdsense,
@@ -11,8 +12,11 @@ import { admin } from "../../middlewares/admin.middleware.js";
 
 const router = Router();
 
-router.get('/', getAllAdsense)
-router.post('/', admin, upload.single('logo'),  createAdsense)
+// Sayt üçün: yalnız aktiv reklamlar
+router.get('/', getActiveAdsense)
+// Admin panel üçün: hamısı
+router.get('/all', admin, getAllAdsense)
+router.post('/', admin, upload.single('logo'), createAdsense)
 router.post('/click/:adsenseId', clickAdsense)
 router.put('/:adsenseId', admin, upload.single('logo'), updateAdsense)
 router.delete('/:adsenseId', admin, deleteAdsense)

@@ -13,7 +13,12 @@ const createMakeAndModel = async (req, res, next) => {
   try {
     const file = req.file
     const makeLabel = req.body.makeLabel
-    const modelLabels = JSON.parse(req.body.modelLabels || '[]')
+    let modelLabels = []
+    try {
+      modelLabels = JSON.parse(req.body.modelLabels || '[]')
+    } catch {
+      return res.status(400).json({ success: false, message: 'Model siyahısı düzgün deyil' })
+    }
 
     const result = await metadataService.createMakeAndModel(file, makeLabel, modelLabels)
 
@@ -78,8 +83,8 @@ const deleteModel = async (req, res, next) => {
 
 const createBasicMetadata = async (req, res, next) => {
   try {
-    const dataModel = req.body.dataModel.toLowerCase()
-    const dataLabel = req.body.dataLabel
+    const dataModel = req.body?.dataModel
+    const dataLabel = req.body?.dataLabel
 
     const result = await metadataService.createBasicMetadata(dataModel, dataLabel)
 
@@ -91,9 +96,8 @@ const createBasicMetadata = async (req, res, next) => {
 
 const deleteBasicMetadata = async (req, res, next) => {
   try {
-    const dataModel = req.body.dataModel.toLowerCase()
-    // Əvvəl dataLabel idi, amma servis id gözləyir
-    const dataId = req.body.dataId
+    const dataModel = req.body?.dataModel
+    const dataId = req.body?.dataId
 
     const result = await metadataService.deleteBasicMetadata(dataModel, dataId)
 
@@ -103,8 +107,27 @@ const deleteBasicMetadata = async (req, res, next) => {
   }
 }
 
+const updateBasicMetadata = async (req, res, next) => {
+  try {
+    const { dataModel, dataId, dataLabel } = req.body ?? {}
+    res.status(200).json(await metadataService.updateBasicMetadata(dataModel, dataId, dataLabel))
+  } catch (err) {
+    next(err)
+  }
+}
+
+const getUsage = async (req, res, next) => {
+  try {
+    res.status(200).json(await metadataService.getUsage())
+  } catch (err) {
+    next(err)
+  }
+}
+
 export {
   getMetadata,
+  updateBasicMetadata,
+  getUsage,
   createMakeAndModel,
   updateMake,
   deleteMake,

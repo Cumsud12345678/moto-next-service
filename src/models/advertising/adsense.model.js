@@ -14,10 +14,8 @@ const adsenseSchema = mongoose.Schema({
     type: Number,
     default: 0
   },
-  adsenseExpiresAt: { 
-    type: Date,
-    default: new Date()
-  },
+  // ƏVVƏL: default: new Date() — server başlayan an bütün reklamlara yazılırdı
+  adsenseExpiresAt: { type: Date, index: true },
   ownerName: String,
   ownerPhone: String
 },{
