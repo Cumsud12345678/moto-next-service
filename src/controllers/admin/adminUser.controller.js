@@ -1,152 +1,88 @@
 import adminUserService from "../../services/admin/adminUser.service.js";
+import { paginationMeta, parsePagination } from "../../utils/http.js";
 
-// page >= 1, limit 1..100 (çox böyük limit göndərib serveri yormasın)
-const parsePagination = (query) => {
-  const page = Math.max(parseInt(query.page) || 1, 1)
-  const limit = Math.min(Math.max(parseInt(query.limit) || 10, 1), 100)
-  return { page, limit }
-}
-
-const getAllUsers = async (req, res, next) => {
-  try{
+// GET /api/admin/users?q=&role=&status=&page=&limit=
+// (/filter də eyni funksiyaya yönəlir — köhnə linklər işləsin)
+const getUsers = async (req, res, next) => {
+  try {
     const { page, limit } = parsePagination(req.query)
-
-    const { users, total } = await adminUserService.getAllUsers(page, limit)
-    res.status(200).json({
-      success: true,
-      data: users,
-      total,
-      page,
-      limit,
-      totalPages: Math.max(Math.ceil(total / limit), 1)
-    })
-  }catch(err) {
-    next(err)
-  }
-}
-
-const getFilteredUsers = async (req, res, next) => {
-  try{
-    const { page, limit } = parsePagination(req.query)
-    const filters = req.query
-
-    const { users, total } = await adminUserService.getFilteredUsers(filters, page, limit)
-    res.status(200).json({
-      success: true,
-      data: users,
-      total,
-      page,
-      limit,
-      totalPages: Math.max(Math.ceil(total / limit), 1)
-    })
-  }catch(err) {
+    const { users, total } = await adminUserService.getUsers(req.query, page, limit)
+    res.status(200).json({ success: true, data: users, ...paginationMeta(total, page, limit) })
+  } catch (err) {
     next(err)
   }
 }
 
 const deleteUser = async (req, res, next) => {
-  try{
-    const userId = req.params.userId
-    const adminId = req.user?.id
-    const reason = req.body.reason
-
-    await adminUserService.deleteUser(userId, adminId, reason)
-    res.status(200).json({ success: true, message: 'User silindi' })
-  }catch(err) {
+  try {
+    const result = await adminUserService.deleteUser(req.params.userId, req.user?.id, req.body?.reason)
+    res.status(200).json(result)
+  } catch (err) {
     next(err)
   }
 }
 
 const warningUser = async (req, res, next) => {
-  try{
-    const userId = req.params.userId
-    const message = req.body.reasons
-
-    const result = await adminUserService.warningUser(userId, message)
-    res.status(200).json(result)
-  }catch(err) {
+  try {
+    // "reasons" köhnə frontend üçün saxlanılıb
+    const message = req.body?.message ?? req.body?.reasons
+    res.status(200).json(await adminUserService.warningUser(req.params.userId, message))
+  } catch (err) {
     next(err)
   }
 }
 
 const resetWarningUser = async (req, res, next) => {
-  try{
-    const userId = req.params.userId
-
-    const result = await adminUserService.resetWarningUser(userId)
-    res.status(200).json(result)
-  }catch(err) {
+  try {
+    res.status(200).json(await adminUserService.resetWarningUser(req.params.userId))
+  } catch (err) {
     next(err)
   }
 }
 
 const blockedUser = async (req, res, next) => {
-  try{
-    const userId = req.params.userId
-    const message = req.body.message
-
-    const result = await adminUserService.blokedUser(userId, message)
-    res.status(200).json(result)
-  }catch(err) {
+  try {
+    res.status(200).json(await adminUserService.blokedUser(req.params.userId, req.body?.message, req.user?.id))
+  } catch (err) {
     next(err)
   }
 }
 
 const unBlockedUser = async (req, res, next) => {
-  try{
-    const userId = req.params.userId
-
-    const result = await adminUserService.unBlokedUser(userId)
-    res.status(200).json(result)
-  }catch(err) {
+  try {
+    res.status(200).json(await adminUserService.unBlokedUser(req.params.userId))
+  } catch (err) {
     next(err)
   }
 }
 
 const editUserRole = async (req, res, next) => {
-  try{
-    const userId = req.params.userId
-    const role = req.body.role
-
-    const result = await adminUserService.editUserRole(userId, role)
-    res.status(200).json(result)
-  }catch(err) {
+  try {
+    res.status(200).json(await adminUserService.editUserRole(req.params.userId, req.body?.role, req.user?.id))
+  } catch (err) {
     next(err)
   }
 }
 
-
-// DELETED USERS LE BAQLI
-// (əvvəl req, res, next parametrləri yox idi və try/catch yox idi;
-//  page/limit də req.params-dan oxunurdu, düzgünü req.query-dir)
 const getDeletedUsers = async (req, res, next) => {
-  try{
+  try {
     const { page, limit } = parsePagination(req.query)
-
     const { deletedUsers, total } = await adminUserService.getDeletedUsers(page, limit)
-
-    res.status(200).json({
-      success: true,
-      data: deletedUsers,
-      total,
-      page,
-      limit,
-      totalPages: Math.max(Math.ceil(total / limit), 1)
-    })
-  }catch(err) {
+    res.status(200).json({ success: true, data: deletedUsers, ...paginationMeta(total, page, limit) })
+  } catch (err) {
     next(err)
   }
 }
-
 
 export {
-  getAllUsers,
-  getFilteredUsers,
+  getUsers,
+  getUsers as getAllUsers,
+  getUsers as getFilteredUsers,
   deleteUser,
   warningUser,
   resetWarningUser,
   blockedUser,
   unBlockedUser,
   editUserRole,
-  getDeletedUsers
+  getDeletedUsers,
 }

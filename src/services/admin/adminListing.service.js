@@ -1,132 +1,139 @@
 import mongoose from "mongoose"
 import { DeletedListing } from "../../models/listing/deletedListing.model.js"
-import { DeletedUser } from "../../models/user/deletedUser.model.js"
 import { Listing } from "../../models/listing/listing.model.js"
+import { Like } from "../../models/interaction/like.model.js"
 import { Message } from "../../models/interaction/message.model.js"
 import { User } from "../../models/user/user.model.js"
-import { Like } from "../../models/interaction/like.model.js"
 import { deleteFromR2, deleteManyFromR2 } from "../storage.service.js"
+import { escapeRegex, httpError, isObjectId } from "../../utils/http.js"
 
-// BUTUN ELANLARI GETIR
-const getAllListings = async (page = 1, limit = 10) => {
-  const skip = (page - 1) * limit
+export const LISTING_STATUSES = ['pending', 'active', 'sold', 'expired', 'rejected', 'blocked']
 
-  const [listings, total] = await Promise.all([
-    Listing.find()
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .withAdminFullRelations()
-      .lean(),
-    Listing.countDocuments()
-  ])
-
-  return {
-    listings,
-    total
-  }
+// Status dəyişəndə istifadəçiyə gedən mesajın tipi
+const STATUS_MESSAGE_TYPE = {
+  active: 'success',
+  sold: 'success',
+  pending: 'warning',
+  expired: 'warning',
+  rejected: 'danger',
+  blocked: 'danger',
 }
 
-// FILTERLENMIS ELANLARI GETIR
-const getFilteredListings = async (filters, page=1, limit=10) => {
-  const skip = (page - 1) * limit
-  // const query = generateQuery(filters)
-
+// Admin paneldəki filtrlərdən Mongo sorğusu
+// q: elan ID, telefon nömrəsi və ya satıcının email-i
+const buildListingQuery = async (filters = {}) => {
   const query = {}
 
-  if(filters.listingId) query._id = filters.listingId;
-  if(filters.phone) query.phone = filters.phone;
+  const q = String(filters.q ?? '').trim()
+  if (q) {
+    const digits = q.replace(/\D/g, '')
+    if (isObjectId(q)) {
+      query._id = q
+    } else if (digits.length >= 7 && digits.length === q.replace(/[\s+()-]/g, '').length) {
+      // telefon bazada 9 rəqəmli saxlanılır (501234567); "+994 50 123 45 67" də tapılsın
+      query.phone = Number(digits.slice(-9))
+    } else {
+      const sellers = await User.find({ email: new RegExp(escapeRegex(q), 'i') }).select('_id').limit(50).lean()
+      query.seller = { $in: sellers.map((s) => s._id) }
+    }
+  }
+
+  // Köhnə linklər üçün (/admin/listings/filter?listingId=...&phone=...)
+  if (filters.listingId && isObjectId(filters.listingId)) query._id = filters.listingId
+  if (filters.phone) query.phone = Number(String(filters.phone).replace(/\D/g, '').slice(-9))
+
+  if (filters.seller && isObjectId(filters.seller)) query.seller = filters.seller
+  if (filters.make && isObjectId(filters.make)) query.make = filters.make
+  if (LISTING_STATUSES.includes(filters.status)) query.status = filters.status
+  if (filters.isUrgent === 'true') query.isUrgent = true
+  if (filters.isUrgent === 'false') query.isUrgent = { $ne: true }
+
+  return query
+}
+
+const getListings = async (filters, page = 1, limit = 20) => {
+  const query = await buildListingQuery(filters)
 
   const [listings, total] = await Promise.all([
     Listing.find(query)
-      .sort({ randomKey: -1 })
-      .skip(skip)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
       .limit(limit)
       .withAdminFullRelations()
       .lean(),
-    Listing.countDocuments(query)
+    Listing.countDocuments(query),
   ])
 
-  return {
-    listings,
-    total
-  }
-
+  return { listings, total }
 }
 
-// USERIN ELANLARIN GETIR
 const getUserListings = async (userId) => {
-  const listings = await Listing.find({seller: userId})
+  if (!isObjectId(userId)) throw httpError(400, 'Yanlış istifadəçi ID')
+  return Listing.find({ seller: userId })
     .sort({ createdAt: -1 })
     .withAdminFullRelations()
     .lean()
-
-  return listings
 }
 
-// PREMIUM ELANLARI GETIR
 const getUrgentListings = async (page = 1, limit = 10) => {
   const skip = (page - 1) * limit
 
   const [urgentListings, total] = await Promise.all([
-    Listing.find({isUrgent: true})
-      .sort({ urgentActiveAt: -1 })
+    Listing.find({ isUrgent: true })
+      .sort({ urgentExpiresAt: 1 }) // vaxtı ən tez bitənlər yuxarıda
       .skip(skip)
       .limit(limit)
       .withAdminFullRelations()
       .lean(),
-    Listing.countDocuments({ isUrgent: true })
+    Listing.countDocuments({ isUrgent: true }),
   ])
 
-  return {
-    urgentListings,
-    total
-  }
+  return { urgentListings, total }
 }
 
-// 1 ELANI GETIR
+// Admin istənilən statusda elanı görə bilməlidir (əvvəl yalnız "active" qaytarılırdı)
 const getListing = async (listingId) => {
-  const listing = await Listing.findOne({
-    _id: listingId,
-    status: 'active'
-  })
-    .withAdminFullRelations()
-    .lean()
+  if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
 
-  return listing
+  const listing = await Listing.findById(listingId).withAdminFullRelations().lean()
+  if (!listing) throw httpError(404, 'Elan tapılmadı')
+
+  return { success: true, data: listing }
 }
 
-// ELANI SIL
 const deleteListing = async (adminId, listingId, message) => {
+  if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
+
   const session = await mongoose.startSession()
   session.startTransaction()
 
   let imageKeys = []
-  let videoKey
+  let videoKey = null
+  let sellerId = null
 
-  try{
+  try {
     const listing = await Listing.findById(listingId).session(session)
-    if (!listing) throw new Error('Elan tapilmadi');
+    if (!listing) throw httpError(404, 'Elan tapılmadı')
 
     imageKeys = listing.images || []
     videoKey = listing.video || null
+    sellerId = listing.seller
 
-    await Like.deleteMany({listing: listing._id}, { session })
+    await Like.deleteMany({ listing: listing._id }, { session })
 
     await DeletedListing.create([{
       originalListingId: listing._id,
       snapshot: listing.toObject(),
       deletedBy: adminId,
       deletedByRole: 'admin',
-      deleteReason: message,
+      deleteReason: message || '',
       viewCount: listing.viewCount,
-      likedCount: listing.likedCount
+      likedCount: listing.likedCount,
     }], { session })
 
     await Listing.findByIdAndDelete(listingId, { session })
 
     await session.commitTransaction()
-
   } catch (err) {
     await session.abortTransaction()
     throw err
@@ -134,141 +141,78 @@ const deleteListing = async (adminId, listingId, message) => {
     session.endSession()
   }
 
-  try{
-    await deleteManyFromR2(imageKeys)
-    if(videoKey) await deleteFromR2(videoKey);
-  }catch (err) {
-    console.error('R2 şəkilləri silinə bilmədi:', err)
+  // Səbəb yazılıbsa, satıcıya bildiriş
+  if (sellerId && message?.trim()) {
+    await Message.create({
+      user: sellerId,
+      messageType: 'danger',
+      message: `Elanınız silindi. Səbəb: ${message.trim()}`,
+    }).catch((err) => console.error('Mesaj yaradılmadı:', err.message))
   }
 
-  return {
-    success: true,
-    message: 'Elan uğurla silindi'
+  try {
+    if (imageKeys.length) await deleteManyFromR2(imageKeys)
+    if (videoKey) await deleteFromR2(videoKey)
+  } catch (err) {
+    console.error('R2 faylları silinə bilmədi:', err)
   }
+
+  return { success: true, message: 'Elan silindi' }
 }
 
-// ELANI URGENT ET
 const setUrgentListing = async (listingId, day) => {
-  const listing = await Listing.findById(listingId)
-  if (!listing) throw new Error('Elan tapilmadi');
+  const days = parseInt(day, 10)
+  if (!days || days < 1 || days > 365) throw httpError(400, 'Gün sayı 1 ilə 365 arasında olmalıdır')
+  if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
 
   const now = new Date()
+  const urgentExpiresAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
 
-  await Listing.updateOne({ _id: listingId }, {
-    isUrgent: true,
-    urgentActiveAt: now,
-    urgentExpiresAt: new Date(now.getTime() + day * 24 * 60 * 60 * 1000)
-  })
+  const result = await Listing.updateOne(
+    { _id: listingId },
+    { isUrgent: true, urgentActiveAt: now, urgentExpiresAt }
+  )
+  if (result.matchedCount === 0) throw httpError(404, 'Elan tapılmadı')
 
   return {
     success: true,
-    message: 'User guncellendi'
+    message: `Premium ${days} gün təyin edildi`,
+    data: { isUrgent: true, urgentActiveAt: now, urgentExpiresAt },
   }
 }
 
-
-// PREMIUMU LEGV ET
 const removeUrgentListing = async (listingId) => {
+  if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
+
   const result = await Listing.updateOne(
     { _id: listingId },
     { $set: { isUrgent: false }, $unset: { urgentActiveAt: 1, urgentExpiresAt: 1 } }
   )
+  if (result.matchedCount === 0) throw httpError(404, 'Elan tapılmadı')
 
-  if (result.matchedCount === 0) {
-    const error = new Error('Elan tapılmadı')
-    error.statusCode = 404
-    throw error
-  }
-
-  return {
-    success: true,
-    message: 'Premium ləğv edildi'
-  }
+  return { success: true, message: 'Premium ləğv edildi' }
 }
 
-// ELANIN STATUSUNU DEYIS
-const setStatusListing = async (listingId, status) => {
-  const listing = await Listing.findById(listingId)
-  if (!listing) throw new Error('Elan tapilmadi');
+// message yazılıbsa, satıcıya profilində bildiriş göndərilir
+const setStatusListing = async (listingId, status, message) => {
+  if (!LISTING_STATUSES.includes(status)) throw httpError(400, 'Status düzgün deyil')
+  if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
 
-  await Listing.updateOne({ _id: listingId }, {
-    status: status
-  })
+  const listing = await Listing.findByIdAndUpdate(listingId, { status }, { returnDocument: 'after' })
+  if (!listing) throw httpError(404, 'Elan tapılmadı')
 
-  return {
-    success: true,
-    message: 'User guncellendi'
+  const text = String(message ?? '').trim()
+  if (text && listing.seller) {
+    await Message.create({
+      user: listing.seller,
+      messageType: STATUS_MESSAGE_TYPE[status] ?? 'warning',
+      message: text,
+    })
   }
+
+  return { success: true, message: 'Status dəyişdirildi', data: { status } }
 }
 
-
-// YARDIMCI FUNKSIYA
-const generateQuery = (filters) => {
-  const query = {}
-
-  query.status = 'active'
-  if(filters.make) query.make = filters.make;
-  if(filters.model) query.model = filters.model;
-  if(filters.category) query.category = filters.category;
-  if(filters.used !== undefined) query.used = filters.used;
-  if(filters.color) query.color = filters.color;
-  if(filters.fuelType) query.fuelType = filters.fuelType;
-  if(filters.transmission) query.transmission = filters.transmission;
-  if(filters.region) query.region = filters.region;
-  if(filters.barter !== undefined) query.barter = filters.barter;
-  if(filters.document !== undefined) query.document = filters.document;
-  if(filters.seller) query.seller = filters.seller;
-  if(filters.status) query.status = filters.status;
-  if(filters.isBoosted !== undefined) query.isBoosted = filters.isBoosted;
-  if(filters.isUrgent !== undefined) query.isUrgent = filters.isUrgent;
-  
-  if(filters.equipment) {
-    const equipmentArr = Array.isArray(filters.equipment) ? filters.equipment : [filters.equipment];
-    query.equipment = { $all: equipmentArr };
-  }
-  if(filters.minPrice || filters.maxPrice) {
-    query.price = {}
-    if(filters.minPrice) query.price.$gte = filters.minPrice;
-    if(filters.maxPrice) query.price.$lte = filters.maxPrice;
-  }else if(filters.price){
-    query.price = filters.price;
-  }
-  if(filters.minYear || filters.maxYear) {
-    query.year = {}
-    if(filters.minYear) query.year.$gte = filters.minYear;
-    if(filters.maxYear) query.year.$lte = filters.maxYear;
-  }else if(filters.year) {
-    query.year = filters.year;
-  }
-  if(filters.minVolume || filters.maxVolume) {
-    query.volume = {}
-    if(filters.minVolume) query.volume.$gte = filters.minVolume;
-    if(filters.maxVolume) query.volume.$lte = filters.maxVolume;
-  }else if(filters.volume) {
-    query.volume = filters.volume;
-  }
-  if(filters.minPower || filters.maxPower) {
-    query.power = {}
-    if(filters.minPower) query.power.$gte = filters.minPower;
-    if(filters.maxPower) query.power.$lte = filters.maxPower;
-  }else if(filters.power) {
-    query.power = filters.power;
-  }
-  if(filters.minMileage || filters.maxMileage) {
-    query.mileage = {}
-    if(filters.minPileage) query.mileage.$gte = filters.minMileage;
-    if(filters.maxPileage) query.mileage.$lte = filters.maxMileage;
-  }else if(filters.mileage) {
-    query.mileage = filters.mileage;
-  }
-
-  return query;
-}
-
-
-// SILINMIS ELANLARLA BAQLI 
-
-// SILINMIS ELANLARI GETIR
 const getDeletedListings = async (page = 1, limit = 10) => {
   const skip = (page - 1) * limit
   const [deletedListings, total] = await Promise.all([
@@ -278,24 +222,17 @@ const getDeletedListings = async (page = 1, limit = 10) => {
       .skip(skip)
       .limit(limit)
       .lean(),
-    DeletedListing.countDocuments()
+    DeletedListing.countDocuments(),
   ])
 
-  return {
-    deletedListings,
-    total
-  }
+  return { deletedListings, total }
 }
-
-// FILTERLENMIS SILINMIS ELANLARI GETIR
-const getFilteredDeletedListing = async () => {
-
-}
-
 
 export default {
-  getAllListings,
-  getFilteredListings,
+  getListings,
+  // köhnə adlar
+  getAllListings: (page, limit) => getListings({}, page, limit),
+  getFilteredListings: getListings,
   getUserListings,
   getUrgentListings,
   getListing,
@@ -303,5 +240,5 @@ export default {
   setUrgentListing,
   removeUrgentListing,
   setStatusListing,
-  getDeletedListings
+  getDeletedListings,
 }
