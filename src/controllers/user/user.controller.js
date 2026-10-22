@@ -18,8 +18,8 @@ const updateUser = async (req, res, next) => {
     const paramsId = req.params.userId
     const userId = req.user?.id
     
-    if(userId !== paramsId) {
-      return res.status(404).json({ success: false, message: 'icazesiz giris' })
+    if(String(userId) !== String(paramsId)) {
+      return res.status(403).json({ success: false, message: 'İcazə yoxdur' })
     }
     
     const result = await userService.updateUser(userId, name)
@@ -32,18 +32,25 @@ const updateUser = async (req, res, next) => {
 }
 
 
+// URL: /api/users/:userId/urgent/listing/:listingId
+// ƏVVƏL: istifadəçi URL-dəki :userId-dən götürülürdü — istənilən istifadəçi başqasının hədiyyəsini
+// xərcləyib istənilən (hətta başqasının) elanını premium edə bilirdi. İndi yalnız giriş etmiş
+// istifadəçinin özü və yalnız öz elanı üçün işləyir (:userId nəzərə alınmır).
 const usingTheGift = async (req, res, next) => {
-  try{
-    const userId = req.params.userId;
-    const listingId = req.params.listingId;
+  const userId = req.user?.id
+  let charged = false
 
-    const result1 = await userService.usingTheGift(userId)
-    // if(!result1.success) return res.status(500).json({ success: false, message: 'Bir xeta oldu' });
-    const result2 = await listingService.freeListingUrgent(listingId)
-    // if(!result2.success) return res.status(500).json({ success: false, message: 'Bir xeta oldu' });
+  try {
+    const listingId = req.params.listingId
 
-    res.status(200).json({ success: true, message: 'Elan premium edildi' })
-  }catch(err) {
+    const left = await userService.useGift(userId)
+    charged = true
+
+    await listingService.freeListingUrgent(userId, listingId)
+
+    res.status(200).json({ success: true, message: 'Elan 1 günlük premium edildi', data: { giftPremiumCount: left } })
+  } catch (err) {
+    if (charged) await userService.refundGift(userId).catch(() => {})
     next(err)
   }
 }

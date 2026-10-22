@@ -198,8 +198,14 @@ const setStatusListing = async (listingId, status, message) => {
   if (!LISTING_STATUSES.includes(status)) throw httpError(400, 'Status düzgün deyil')
   if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
 
-  const listing = await Listing.findByIdAndUpdate(listingId, { status }, { returnDocument: 'after' })
-  if (!listing) throw httpError(404, 'Elan tapılmadı')
+  const current = await Listing.findById(listingId).select('status')
+  if (!current) throw httpError(404, 'Elan tapılmadı')
+
+  // Elan yenidən aktiv olanda "aktivlik müddəti" sıfırdan başlayır
+  const update = { status }
+  if (status === 'active' && current.status !== 'active') update.activeSince = new Date()
+
+  const listing = await Listing.findByIdAndUpdate(listingId, update, { returnDocument: 'after' })
 
   const text = String(message ?? '').trim()
   if (text && listing.seller) {

@@ -10,6 +10,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Adsense } from "../../models/advertising/adsense.model.js";
 import { formatListingDate } from "../../utils/dateFormatter.js";
 import { processImage } from "../image.service.js";
+import { redis } from "../../config/redis.config.js";
+import { httpError, isObjectId } from "../../utils/http.js";
 
 // 1 ELANI GETIR
 const getListing = async (listingId, userId, guestLikedIds = []) => {
@@ -69,13 +71,16 @@ const getListings = async (page = 1, limit = 10, userId, guestLikedIds) => {
   
   const skip = (page - 1) * limit
 
-  const listings = await Listing.find({ status: 'active' })
-    .select('images document barter credit isUrgent price year volume mileage createdAt')
-    .sort({ isUrgent: -1, createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .withCardRelations()
-    .lean();
+  const [listings, total] = await Promise.all([
+    Listing.find({ status: 'active' })
+      .select('images document barter credit isUrgent price year volume mileage createdAt updatedAt')
+      .sort({ isUrgent: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .withCardRelations()
+      .lean(),
+    Listing.countDocuments({ status: 'active' }),
+  ]);
 
   const listingIds = listings.map(l => l._id);
   let likedListingIds;
@@ -95,7 +100,8 @@ const getListings = async (page = 1, limit = 10, userId, guestLikedIds) => {
 
   return {
     success: true,
-    data
+    data,
+    total
   }
 };
 
@@ -146,11 +152,17 @@ const createListing = async (userId, data, files, listingId) => {
 
   // Dəyişən try/catch-dən kənarda təyin olunur ki, catch daxilində çata bilsin
   const uploadedKeys = [];
-  let newListingId = listingId
+  const newListingId = listingId || new mongoose.Types.ObjectId()
+
+  // Video açarı yalnız bu elan üçün yaradılmış ola bilər.
+  // ƏVVƏL: istənilən açar qəbul olunurdu — başqasının videosunu öz elanına bağlayıb,
+  // sonra elanı silməklə həmin videonu R2-dən sildirmək olardı.
+  if (data.video && !isOwnVideoKey(newListingId, data.video)) {
+    await session.endSession()
+    throw httpError(400, 'Video düzgün deyil')
+  }
 
   try {
-    
-    if(!listingId) newListingId = new mongoose.Types.ObjectId();
 
     // 1. Şəkilləri emal edib R2-yə yükləyirik
     for (let i = 0; i < files.length; i++) {
@@ -209,8 +221,13 @@ const createListing = async (userId, data, files, listingId) => {
 // ELANI GUNCELLE
 const updateListing = async (userId, listingId, data, newFiles = [], keepImageKeys = []) => {
   // Yalnız elanın sahibi dəyişə bilər
+  if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
   const listing = await Listing.findOne({ _id: listingId, seller: userId });
-  if (!listing) throw new Error('Elan tapılmadı');
+  if (!listing) throw httpError(404, 'Elan tapılmadı');
+
+  if (data.video && data.video !== listing.video && !isOwnVideoKey(listingId, data.video)) {
+    throw httpError(400, 'Video düzgün deyil')
+  }
  
   const oldImageKeys = listing.images || [];
   const oldVideo = listing.video || null;
@@ -220,8 +237,8 @@ const updateListing = async (userId, listingId, data, newFiles = [], keepImageKe
  
   // R2-yə toxunmazdan ƏVVƏL şəkil sayını yoxlayırıq
   const totalImages = safeKeepKeys.length + newFiles.length;
-  if (totalImages < 1) throw new Error('Ən azı 1 şəkil olmalıdır');
-  if (totalImages > 10) throw new Error('Maksimum 10 şəkil ola bilər');
+  if (totalImages < 1) throw httpError(400, 'Ən azı 1 şəkil olmalıdır');
+  if (totalImages > 10) throw httpError(400, 'Maksimum 10 şəkil ola bilər');
  
   const newlyUploadedKeys = [];
  
@@ -284,8 +301,9 @@ const deleteListing = async (userId, listingId) => {
   let videoKey
 
   try{
-    const listing = await Listing.findById(listingId).session(session)
-    if (!listing) throw new Error('Elan tapilmadi');
+    // ƏVVƏL: sahib yoxlanılmırdı — istənilən istifadəçi başqasının elanını silə bilirdi
+    const listing = await Listing.findOne({ _id: listingId, seller: userId }).session(session)
+    if (!listing) throw httpError(404, 'Elan tapılmadı')
 
     imageKeys = listing.images || []
     videoKey = listing.video || null
@@ -328,11 +346,13 @@ const deleteListing = async (userId, listingId) => {
 }
 
 const updateExpiredListing = async (listingId, userId) => {
+  if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
   const listing = await Listing.findOne({ _id: listingId, status: 'expired', seller: userId })
-  if (!listing) throw new Error('Elan tapilmadi');
+  if (!listing) throw httpError(404, 'Elan tapılmadı');
  
   await Listing.updateOne({ _id: listingId }, {
-    status: "active"
+    status: "active",
+    activeSince: new Date()
   })
 
   return {
@@ -342,7 +362,13 @@ const updateExpiredListing = async (listingId, userId) => {
 }
 
 // USER UCUN LIKE/UNLIKE
+const assertListingExists = async (listingId) => {
+  if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
+  if (!(await Listing.exists({ _id: listingId }))) throw httpError(404, 'Elan tapılmadı')
+}
+
 const toggleLikeForUser = async (userId, listingId) => {
+  await assertListingExists(listingId)
   const existing = await Like.findOne({ user: userId, listing: listingId });
 
   if (existing) {
@@ -358,6 +384,7 @@ const toggleLikeForUser = async (userId, listingId) => {
 
 // LIKED COUNT-U DEYISDIR (qonaq ucun)
 const adjustLikedCount = async (listingId, delta) => {
+  await assertListingExists(listingId)
   await Listing.findByIdAndUpdate(listingId, { $inc: { likedCount: delta } });
 };
 
@@ -515,37 +542,38 @@ const createUrlVideo = async (id) => {
   }
 }
 
-const clickListing = async (listingId) => {
-  const listing = await Listing.findById(listingId)
-  if (!listing) throw new Error('Elan tapilmadi');
+// Baxış sayı: eyni IP-dən eyni elana 1 saatda bir dəfə sayılır (refresh ilə şişirtmək olmasın)
+const clickListing = async (listingId, ip) => {
+  if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
 
-  await Listing.updateOne(
-    { _id: listingId },
-    {
-      $inc: { viewCount: 1 }
-    }
-  )
-
-  return {
-    success: true
+  try {
+    const fresh = await redis.set(`view:${listingId}:${ip}`, '1', { NX: true, EX: 3600 })
+    if (!fresh) return { success: true }
+  } catch {
+    // Redis işləməsə də sayırıq
   }
+
+  await Listing.updateOne({ _id: listingId, status: 'active' }, { $inc: { viewCount: 1 } })
+  return { success: true }
 }
 
-const freeListingUrgent = async (listingId) => {
-  const listing = await Listing.findById(listingId)
-  if (!listing) throw new Error('Elan tapilmadi');
+// Hədiyyə premium: istifadəçinin öz aktiv elanını 1 günlük premium edir
+const freeListingUrgent = async (userId, listingId) => {
+  if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
+
+  const listing = await Listing.findOne({ _id: listingId, seller: userId })
+  if (!listing) throw httpError(404, 'Elan tapılmadı')
+  if (listing.status !== 'active') throw httpError(400, 'Yalnız aktiv elanı premium etmək olar')
+  if (listing.isUrgent && listing.urgentExpiresAt > new Date()) throw httpError(400, 'Elan artıq premiumdur')
 
   const now = new Date()
-  
   await Listing.updateOne({ _id: listingId }, {
     isUrgent: true,
     urgentActiveAt: now,
     urgentExpiresAt: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000)
   })
 
-  return {
-    success: true
-  }
+  return { success: true }
 }
 
 // YARDIMCI FUNKSIYA
@@ -563,10 +591,9 @@ const generateQuery = (filters) => {
   if(filters.region) query.region = filters.region;
   if(filters.barter !== undefined) query.barter = filters.barter;
   if(filters.document !== undefined) query.document = filters.document;
-  if(filters.seller) query.seller = filters.seller;
-  if(filters.status) query.status = filters.status;
-  if(filters.isBoosted !== undefined) query.isBoosted = filters.isBoosted;
-  if(filters.isUrgent !== undefined) query.isUrgent = filters.isUrgent;
+  // ƏVVƏL: ?status=pending ilə yoxlanılmamış/rədd edilmiş elanlar da açıq görünürdü.
+  // Sayt yalnız aktiv elanları göstərir; status/seller filtrləri yalnız admin paneldədir.
+  if(filters.isUrgent === 'true') query.isUrgent = true;
   
   if(filters.equipment) {
     const equipmentArr = Array.isArray(filters.equipment) ? filters.equipment : [filters.equipment];
@@ -602,14 +629,19 @@ const generateQuery = (filters) => {
   }
   if(filters.minMileage || filters.maxMileage) {
     query.mileage = {}
-    if(filters.minPileage) query.mileage.$gte = filters.minMileage;
-    if(filters.maxPileage) query.mileage.$lte = filters.maxMileage;
+    // ƏVVƏL: "minPileage" yazılmışdı — yürüş filtri heç vaxt işləmirdi
+    if(filters.minMileage) query.mileage.$gte = filters.minMileage;
+    if(filters.maxMileage) query.mileage.$lte = filters.maxMileage;
   }else if(filters.mileage) {
     query.mileage = filters.mileage;
   }
 
   return query;
 }
+
+// createUrlVideo-nun yaratdığı formatdır: listings/<elanId>/video/<uuid>.mp4
+const isOwnVideoKey = (listingId, key) =>
+  new RegExp(`^listings/${String(listingId)}/video/[a-f0-9-]{36}\\.mp4$`, 'i').test(String(key))
 
 const generateStorageKey = (listingId) => {
   return `listings/${listingId}/${crypto.randomUUID()}.webp`

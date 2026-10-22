@@ -6,9 +6,17 @@ const errorMiddleware = (err, req, res, next) => {
   let message = err.message || 'Server xətası';
 
   // Multer-in fayl ölçüsü xətasını tut
-  if (err.code === 'LIMIT_FILE_SIZE') {
+  // Multer xətaları (MulterError) — hamısı istifadəçi xətasıdır
+  if (err.name === 'MulterError') {
     statusCode = 400
-    message = 'Şəkil ölçüsü çox böyükdür (maksimum 2MB)'
+    if (err.code === 'LIMIT_FILE_SIZE') message = 'Şəkil ölçüsü çox böyükdür (maksimum 10MB)'
+    else if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') message = 'Maksimum 10 şəkil yükləmək olar'
+  }
+
+  // Unique index (məs. eyni email) — server xətası deyil
+  if (err.code === 11000) {
+    statusCode = 409
+    message = 'Bu məlumat artıq mövcuddur'
   }
 
   // Yanlış ObjectId (/api/listings/abc) — server xətası deyil, pis sorğudur

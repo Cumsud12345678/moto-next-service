@@ -1,4 +1,6 @@
 import listingService from '../../services/user/listing.service.js'
+import { Listing } from '../../models/listing/listing.model.js'
+import { isObjectId, parsePagination } from '../../utils/http.js'
 import { redis } from '../../config/redis.config.js'
 
 // listing.controller.js — faylın yuxarısına əlavə et
@@ -20,6 +22,7 @@ const getListing = async (req, res, next) => {
     const guestLikedIds = parseGuestLikedIds(req.cookies?.guestLikedIds); // tək deyil, massiv
 
     const result = await listingService.getListing(listingId, userId, guestLikedIds);
+    if (!result) return res.status(404).json({ success: false, message: 'Elan tapılmadı' });
 
     return res.status(200).json(result);
   } catch (err) {
@@ -46,8 +49,8 @@ const getUserListings = async (req, res, next) => {
 
 const getListings = async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || 1
-    const limit = parseInt(req.query.limit) || 20
+    // limit 100-dən çox ola bilməz (?limit=100000 ilə serveri yormaq olmasın)
+    const { page, limit } = parsePagination(req.query, 20)
     const userId = req.user?.id;
     const guestLikedIds = parseGuestLikedIds(req.cookies?.guestLikedIds); // ✅
 
@@ -60,8 +63,7 @@ const getListings = async (req, res, next) => {
 
 const getFilteredListings = async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const { page, limit } = parsePagination(req.query, 10);
     const userId = req.user?.id;
     const guestLikedIds = parseGuestLikedIds(req.cookies?.guestLikedIds); // ✅
     const { page: _p, limit: _l, ...filters } = req.query;
@@ -281,6 +283,10 @@ const createUrlVideo = async (req, res, next) => {
 const authCreateUrlVideo = async (req, res, next) => {
   try{
     const id = req.params.id
+    // Yalnız öz elanının qovluğuna video yükləmək olar
+    if (!isObjectId(id) || !(await Listing.exists({ _id: id, seller: req.user?.id }))) {
+      return res.status(404).json({ success: false, message: 'Elan tapılmadı' })
+    }
     const url = await listingService.createUrlVideo(id)
     res.status(200).json(url)
   }catch(err) {
@@ -292,7 +298,7 @@ const clickListing = async (req, res, next) => {
   try{
     const listingId = req.params.listingId;
 
-    const result = await listingService.clickListing(listingId)
+    const result = await listingService.clickListing(listingId, req.ip)
 
     res.status(200).json(result)
   }catch(err) {

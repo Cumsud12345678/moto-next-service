@@ -42,6 +42,11 @@ const listingSchema = new Schema({
     default: 'pending'
   },
 
+  // Elanın son dəfə aktiv olduğu an (yaradılanda və yenidən aktivləşdiriləndə yenilənir).
+  // Köhnə elanların avtomatik bitməsi createdAt-a yox, buna görə hesablanır —
+  // əks halda istifadəçi elanı yenidən aktiv edən kimi job onu dərhal yenə bitirərdi.
+  activeSince: { type: Date, default: () => new Date() },
+
   // Sıralama
   randomKey: {
     type: Number,
@@ -88,6 +93,13 @@ listingSchema.query.withAdminFullRelations = function() {
     .populate('equipment')
     .populate('seller', '_id name role email')
 }
+
+// Tez-tez istifadə olunan sorğular üçün indekslər
+listingSchema.index({ status: 1, isUrgent: -1, createdAt: -1 }) // ana səhifə
+listingSchema.index({ status: 1, make: 1, model: 1 })            // filtr, oxşar elanlar
+listingSchema.index({ seller: 1, createdAt: -1 })                 // profil
+listingSchema.index({ isUrgent: 1, urgentExpiresAt: 1 })          // premium job
+listingSchema.index({ status: 1, activeSince: 1 })                // köhnə elan job
 
 const Listing = mongoose.model('Listing', listingSchema)
 

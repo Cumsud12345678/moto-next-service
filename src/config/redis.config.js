@@ -1,11 +1,21 @@
 import { createClient } from "redis";
 
 const redis = createClient({
-  url: process.env.REDIS_URL
+  url: process.env.REDIS_URL,
+  socket: {
+    // Bağlantı kəsiləndə tədricən yenidən qoşulmağa çalış (maksimum 10 saniyədən bir)
+    reconnectStrategy: (retries) => Math.min(retries * 500, 10_000),
+  },
 });
 
+// ƏVVƏL: hər xəta konsola tam yazılırdı — bağlantı kəsiləndə saniyədə onlarla sətir loq
+let lastErrorAt = 0
 redis.on("error", (err) => {
-  console.log(err);
+  const now = Date.now()
+  if (now - lastErrorAt > 30_000) {
+    console.error("Redis xətası:", err.message)
+    lastErrorAt = now
+  }
 });
 
 const connect = async () => {
@@ -13,13 +23,13 @@ const connect = async () => {
     await redis.connect();
     console.log("Redis qoşuldu");
   } catch (err) {
-    console.error("Redis bağlantı xətası:", err);
+    console.error("Redis bağlantı xətası:", err.message);
   }
 };
 
 connect();
 
 
-export{
+export {
   redis
-} 
+}
