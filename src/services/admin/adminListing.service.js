@@ -4,6 +4,7 @@ import { Listing } from "../../models/listing/listing.model.js"
 import { Like } from "../../models/interaction/like.model.js"
 import { Message } from "../../models/interaction/message.model.js"
 import { User } from "../../models/user/user.model.js"
+import { Report } from "../../models/interaction/report.model.js"
 import { deleteFromR2, deleteManyFromR2 } from "../storage.service.js"
 import { escapeRegex, httpError, isObjectId } from "../../utils/http.js"
 
@@ -140,6 +141,10 @@ const deleteListing = async (adminId, listingId, message) => {
   } finally {
     session.endSession()
   }
+
+  // Bu elana gələn baxılmamış şikayətlər artıq həll olunub sayılır
+  await Report.updateMany({ listing: listingId, status: 'new' }, { status: 'reviewed', handledAt: new Date() })
+    .catch((err) => console.error('Şikayətlər bağlanmadı:', err.message))
 
   // Səbəb yazılıbsa, satıcıya bildiriş
   if (sellerId && message?.trim()) {

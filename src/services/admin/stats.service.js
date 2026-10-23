@@ -2,6 +2,7 @@ import { User } from '../../models/user/user.model.js'
 import { Listing } from '../../models/listing/listing.model.js'
 import { MakeRequest } from '../../models/metadata/makeRequest.model.js'
 import { ErrorLog } from '../../models/system/errorLog.model.js'
+import { Report } from '../../models/interaction/report.model.js'
 
 const TZ = 'Asia/Baku'
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -47,6 +48,7 @@ const getStats = async () => {
     viewsRow,
     makeRequestsPending,
     errorsOpen,
+    reportsNew,
     listingsDaily,
     usersDaily,
   ] = await Promise.all([
@@ -60,6 +62,7 @@ const getStats = async () => {
     Listing.aggregate([{ $group: { _id: null, views: { $sum: { $ifNull: ['$viewCount', 0] } } } }]),
     MakeRequest.countDocuments({ status: 'pending' }),
     ErrorLog.countDocuments({ resolved: false }),
+    Report.countDocuments({ status: 'new' }),
     dailyCounts(Listing, 30),
     dailyCounts(User, 30),
   ])
@@ -81,6 +84,7 @@ const getStats = async () => {
       },
       makeRequestsPending,
       errorsOpen,
+      reportsNew,
       daily: { listings: listingsDaily, users: usersDaily },
     },
   }

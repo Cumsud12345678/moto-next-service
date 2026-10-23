@@ -17,6 +17,7 @@ import {
   authCreateUrlVideo,
   clickListing,
 } from "../../controllers/user/listing.controller.js";
+import { createReport } from "../../controllers/user/report.controller.js";
 
 // TODO: öz auth middleware faylının yolunu bura yaz
 import { optionalAuth } from "../../middlewares/optionalAuth.middleware.js";
@@ -31,6 +32,8 @@ import { rateLimit } from "../../middlewares/rateLimit.middleware.js";
 const createLimit = rateLimit({ name: 'listing-create', max: 20, windowSec: 3600, key: (req) => String(req.user?.id), message: 'Bir saatda çox elan yerləşdirdiniz. Bir az sonra yenidən cəhd edin' })
 const videoLimit = rateLimit({ name: 'video-url', max: 30, windowSec: 3600, key: (req) => String(req.user?.id) })
 const likeLimit = rateLimit({ name: 'like', max: 60, windowSec: 60 })
+// Bir IP-dən saatda 10 şikayət
+const reportLimit = rateLimit({ name: 'report', max: 10, windowSec: 3600, message: 'Çox sayda şikayət göndərdiniz. Bir az sonra yenidən cəhd edin' })
 
 // listing.routes.js
 const router = Router();
@@ -53,5 +56,6 @@ router.post("/", auth, createLimit, upload.array("images", 10), validateFiles, v
 router.put("/:listingId", auth, upload.array("images", 10), validate(updateListingSchema), updateListing);
 router.delete("/:listingId", auth, deleteListing);
 router.post("/:listingId/like", likeLimit, optionalAuth, toggleLike);
+router.post("/:listingId/report", reportLimit, optionalAuth, createReport);
 
 export default router

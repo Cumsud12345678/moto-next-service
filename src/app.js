@@ -26,6 +26,7 @@ import adsenseRoutes from './routes/admin/adsense.routes.js'
 import adminMakeRequestRoutes from './routes/admin/makeRequest.routes.js'
 import adminErrorLogRoutes from './routes/admin/errorLog.routes.js'
 import adminStatsRoutes from './routes/admin/stats.routes.js'
+import adminReportRoutes from './routes/admin/report.routes.js'
 
 // Bunlar olmadan server düzgün işləyə bilməz — başlamadan yoxlayırıq
 const REQUIRED_ENV = ['MONGO_URL', 'JWT_SECRET', 'REDIS_URL']
@@ -89,6 +90,7 @@ app.use('/api/admin/listings', admin, adminListingRoutes)
 app.use('/api/admin/make-requests', admin, adminMakeRequestRoutes)
 app.use('/api/admin/error-logs', admin, adminErrorLogRoutes)
 app.use('/api/admin/stats', admin, adminStatsRoutes)
+app.use('/api/admin/reports', admin, adminReportRoutes)
 
 // Mövcud olmayan endpoint — HTML əvəzinə JSON 404
 app.use((req, res) => {
