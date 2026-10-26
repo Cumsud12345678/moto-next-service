@@ -34,7 +34,16 @@ const getListing = async (listingId, userId, guestLikedIds = []) => {
     isLiked = guestLikedIds.includes(listingId.toString());
   }
 
-  const data = { ...listing, isLiked, createdAt: formatListingDate(listing.createdAt) };
+  const { viewCount, likedCount, ...rest } = listing
+  const isOwner = !!userId && String(listing.seller?._id ?? listing.seller) === String(userId)
+
+  // Baxış sayını yalnız elanın sahibi görür
+  const data = {
+    ...rest,
+    ...(isOwner && { viewCount: viewCount ?? 0 }),
+    isLiked,
+    createdAt: formatListingDate(listing.createdAt),
+  };
 
   return {
     success: true,
@@ -110,11 +119,12 @@ const getListings = async (page = 1, limit = 10, userId, guestLikedIds) => {
 const getFilteredListings = async (filters, page=1, limit=10, userId, guestLikedIds) => {
   const skip = (page - 1) * limit
   const query = generateQuery(filters)
+  const sort = SORTS[filters.sort] ?? SORTS.newest
 
   const [listings, total] = await Promise.all([
     Listing.find(query)
-      .select('-randomKey -boostRemainingCount -lastBoostedAt -urgentExpiresAt')
-      .sort({ createdAt: -1 })
+      .select('-randomKey -boostRemainingCount -lastBoostedAt -urgentExpiresAt -viewCount -likedCount')
+      .sort(sort)
       .skip(skip)
       .limit(limit)
       .withCardRelations()
@@ -543,8 +553,11 @@ const createUrlVideo = async (id) => {
 }
 
 // Baxış sayı: eyni IP-dən eyni elana 1 saatda bir dəfə sayılır (refresh ilə şişirtmək olmasın)
-const clickListing = async (listingId, ip) => {
+// Sahibin öz baxışları sayılmır
+const clickListing = async (listingId, ip, userId) => {
   if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
+
+  if (userId && await Listing.exists({ _id: listingId, seller: userId })) return { success: true }
 
   try {
     const fresh = await redis.set(`view:${listingId}:${ip}`, '1', { NX: true, EX: 3600 })
@@ -576,6 +589,51 @@ const freeListingUrgent = async (userId, listingId) => {
   return { success: true }
 }
 
+// Axtarış səhifəsində sıralama (?sort=...)
+const SORTS = {
+  newest: { createdAt: -1, _id: -1 },
+  price_asc: { price: 1, _id: -1 },
+  price_desc: { price: -1, _id: -1 },
+  mileage_asc: { mileage: 1, _id: -1 },
+  year_desc: { year: -1, _id: -1 },
+}
+
+// SATICININ DIGER ELANLARI (elan səhifəsində)
+const getSellerListings = async (listingId, userId, guestLikedIds, limit = 8) => {
+  if (!isObjectId(listingId)) throw httpError(400, 'Yanlış elan ID')
+
+  const current = await Listing.findOne({ _id: listingId, status: 'active' }).select('seller').lean()
+  if (!current?.seller) return { success: true, data: [], total: 0 }
+
+  const query = { seller: current.seller, status: 'active', _id: { $ne: current._id } }
+
+  const [listings, total] = await Promise.all([
+    Listing.find(query)
+      .select('images document barter credit isUrgent price year volume mileage createdAt seller make model region')
+      .sort({ isUrgent: -1, createdAt: -1 })
+      .limit(limit)
+      .withCardRelations()
+      .lean(),
+    Listing.countDocuments(query),
+  ])
+
+  let likedListingIds
+  if (userId) {
+    const likes = await Like.find({ user: userId, listing: { $in: listings.map(l => l._id) } })
+    likedListingIds = new Set(likes.map(l => l.listing.toString()))
+  } else {
+    likedListingIds = new Set(guestLikedIds)
+  }
+
+  const data = listings.map(l => ({
+    ...l,
+    isLiked: likedListingIds.has(l._id.toString()),
+    createdAt: formatListingDate(l.createdAt),
+  }))
+
+  return { success: true, data, total }
+}
+
 // YARDIMCI FUNKSIYA
 const generateQuery = (filters) => {
   const query = {}
@@ -591,6 +649,8 @@ const generateQuery = (filters) => {
   if(filters.region) query.region = filters.region;
   if(filters.barter !== undefined) query.barter = filters.barter;
   if(filters.document !== undefined) query.document = filters.document;
+  // ƏVVƏL: sayt "Kredit" filtrini göndərirdi, amma backend onu nəzərə almırdı
+  if(filters.credit !== undefined) query.credit = filters.credit;
   // ƏVVƏL: ?status=pending ilə yoxlanılmamış/rədd edilmiş elanlar da açıq görünürdü.
   // Sayt yalnız aktiv elanları göstərir; status/seller filtrləri yalnız admin paneldədir.
   if(filters.isUrgent === 'true') query.isUrgent = true;
@@ -627,6 +687,10 @@ const generateQuery = (filters) => {
   }else if(filters.power) {
     query.power = filters.power;
   }
+  // ƏVVƏL: sayt yürüşü minDistance/maxDistance adı ilə göndərirdi, backend isə
+  // minMileage/maxMileage gözləyirdi — yürüş filtri işləmirdi
+  if(filters.minDistance && !filters.minMileage) filters.minMileage = filters.minDistance;
+  if(filters.maxDistance && !filters.maxMileage) filters.maxMileage = filters.maxDistance;
   if(filters.minMileage || filters.maxMileage) {
     query.mileage = {}
     // ƏVVƏL: "minPileage" yazılmışdı — yürüş filtri heç vaxt işləmirdi
@@ -673,6 +737,7 @@ export default {
   migrateGuestLikes,
   getMyLikedListings,
   getSimilarListings,
+  getSellerListings,
 
   createUrlVideo,
   clickListing,

@@ -271,6 +271,18 @@ const getSimilarListings = async (req, res, next) => {
 }
 
 
+// SATICININ DIGER ELANLARI
+const getSellerListings = async (req, res, next) => {
+  try {
+    const userId = req.user?.id
+    const guestLikedIds = parseGuestLikedIds(req.cookies?.guestLikedIds)
+    const result = await listingService.getSellerListings(req.params.listingId, userId, guestLikedIds)
+    res.status(200).json(result)
+  } catch (err) {
+    next(err)
+  }
+}
+
 const createUrlVideo = async (req, res, next) => {
   try{
     const url = await listingService.createUrlVideo()
@@ -298,7 +310,7 @@ const clickListing = async (req, res, next) => {
   try{
     const listingId = req.params.listingId;
 
-    const result = await listingService.clickListing(listingId, req.ip)
+    const result = await listingService.clickListing(listingId, req.ip, req.user?.id)
 
     res.status(200).json(result)
   }catch(err) {
@@ -308,6 +320,7 @@ const clickListing = async (req, res, next) => {
 
 
 export {
+  getSellerListings,
   getListing,
   getUserListings,
   getListings,

@@ -13,10 +13,10 @@ import { escapeRegex, httpError, isObjectId } from "../utils/http.js";
 
 const getMetadata = async () => {
   const [
-    makes, models, fuelTypes, transmissions, cities, colors, categories, equipments
+    makes, models, fuelTypes, transmissions, cities, colors, categories, equipments, makeCounts
   ] =
     await Promise.all([
-      Make.find().sort({ label: 1 }),
+      Make.find().sort({ label: 1 }).lean(),
       Model.find().sort({ label: 1 }),
       FuelType.find(),
       Transmission.find(),
@@ -24,10 +24,18 @@ const getMetadata = async () => {
       Color.find(),
       Category.find(),
       Equipment.find(),
+      // Hər markanın aktiv elan sayı — footer-də "Yamaha (10)" kimi göstərilir
+      Listing.aggregate([
+        { $match: { status: 'active' } },
+        { $group: { _id: '$make', count: { $sum: 1 } } },
+      ]),
     ])
 
+  const countMap = new Map(makeCounts.map((c) => [String(c._id), c.count]))
+
   return {
-    makes, models, fuelTypes, transmissions, cities, colors, categories, equipments
+    makes: makes.map((m) => ({ ...m, count: countMap.get(String(m._id)) ?? 0 })),
+    models, fuelTypes, transmissions, cities, colors, categories, equipments
   }
 }
 

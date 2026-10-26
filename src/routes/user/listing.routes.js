@@ -16,6 +16,7 @@ import {
   createUrlVideo,
   authCreateUrlVideo,
   clickListing,
+  getSellerListings,
 } from "../../controllers/user/listing.controller.js";
 import { createReport } from "../../controllers/user/report.controller.js";
 
@@ -47,11 +48,12 @@ router.get('/create/uploads/video/url/:id', auth, videoLimit, authCreateUrlVideo
 
 router.get('/likes', optionalAuth, getMyLikedListings);
 router.get('/:listingId/similar', optionalAuth, getSimilarListings);
+router.get('/:listingId/seller', optionalAuth, getSellerListings);
 router.get("/:listingId", optionalAuth, getListing);   // ← indi bundan sonra gəlir
 
 router.get("/expired/listing/update/:listingId", auth, updateExpiredListing)
 
-router.post("/click/:listingId", clickListing);
+router.post("/click/:listingId", optionalAuth, clickListing);
 router.post("/", auth, createLimit, upload.array("images", 10), validateFiles, validate(createListingSchema), createListing);
 router.put("/:listingId", auth, upload.array("images", 10), validate(updateListingSchema), updateListing);
 router.delete("/:listingId", auth, deleteListing);
