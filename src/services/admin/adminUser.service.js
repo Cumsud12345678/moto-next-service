@@ -5,6 +5,8 @@ import { Listing } from "../../models/listing/listing.model.js"
 import { Message } from "../../models/interaction/message.model.js"
 import { User } from "../../models/user/user.model.js"
 import { Like } from "../../models/interaction/like.model.js"
+import { Part } from "../../models/part/part.model.js"
+import { PartLike } from "../../models/part/partLike.model.js"
 import { deleteManyFromR2 } from "../storage.service.js"
 import { escapeRegex, httpError, isObjectId } from "../../utils/http.js"
 
@@ -101,6 +103,25 @@ const deleteUser = async (userId, adminId, reason) => {
       await Listing.deleteMany({ seller: userId }).session(session)
     }
 
+    // Ehtiyat hissəsi elanları
+    const parts = await Part.find({ seller: userId }).session(session)
+    if (parts.length > 0) {
+      imageKeys = [...imageKeys, ...parts.flatMap((p) => p.images || [])]
+      await DeletedListing.insertMany(parts.map((p) => ({
+        kind: 'part',
+        originalListingId: p._id,
+        snapshot: p.toObject(),
+        deletedBy: adminId,
+        deletedByRole: 'system',
+        deleteReason: 'İstifadəçi silindiyi üçün silindi',
+        viewCount: p.viewCount,
+        likedCount: p.likedCount,
+      })), { session })
+      await PartLike.deleteMany({ part: { $in: parts.map((p) => p._id) } }).session(session)
+      await Part.deleteMany({ seller: userId }).session(session)
+    }
+    await PartLike.deleteMany({ user: userId }).session(session)
+
     await Like.deleteMany({ user: userId }).session(session)
     await Message.deleteMany({ user: userId }).session(session)
 
@@ -136,6 +157,7 @@ const lockUser = async (userId) => {
   await Promise.all([
     User.updateOne({ _id: userId }, { isLocked: true, lockedAt }),
     Listing.updateMany({ seller: userId, status: 'active' }, { status: 'blocked' }),
+    Part.updateMany({ seller: userId, status: 'active' }, { status: 'blocked' }),
   ])
   return lockedAt
 }
@@ -207,6 +229,7 @@ const unBlokedUser = async (userId) => {
     // Blokdan çıxanda xəbərdarlıqlar da sıfırlanır, yoxsa növbəti xəbərdarlıqda dərhal yenidən bloklanar
     User.updateOne({ _id: userId }, { isLocked: false, lockedAt: null, isWarning: 0 }),
     Listing.updateMany({ seller: userId, status: 'blocked' }, { status: 'active' }),
+    Part.updateMany({ seller: userId, status: 'blocked' }, { status: 'active' }),
   ])
 
   return { success: true, message: 'İstifadəçi blokdan çıxarıldı', data: { isLocked: false, lockedAt: null, isWarning: 0 } }

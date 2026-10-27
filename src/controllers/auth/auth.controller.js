@@ -1,5 +1,7 @@
 import authService from '../../services/auth/auth.service.js'
 import listingService from '../../services/user/listing.service.js';
+import partService from '../../services/user/part.service.js';
+import { GUEST_PART_COOKIE, parseGuestParts } from '../user/part.controller.js';
 import jwt from 'jsonwebtoken'
 import { redis } from '../../config/redis.config.js'
 
@@ -60,6 +62,17 @@ const absoluteVerifyEnd = async (req, res, next) => {
         console.error('migrateGuestLikes xətası:', e.message);
       }
       res.clearCookie('guestLikedIds');
+    }
+
+    // Qonaq kimi bəyənilmiş hissə elanları da hesaba köçürülür
+    const guestParts = parseGuestParts(req.cookies?.[GUEST_PART_COOKIE]);
+    if (guestParts.length > 0) {
+      try {
+        await partService.migrateGuestLikes(result.userId, guestParts);
+      } catch (e) {
+        console.error('Hissə bəyənmələri köçürülmədi:', e.message);
+      }
+      res.clearCookie(GUEST_PART_COOKIE);
     }
     
     res.status(200).json(result) // success, userId

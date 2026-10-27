@@ -8,12 +8,15 @@ import { Make } from "../models/metadata/make.model.js";
 import { Model } from "../models/metadata/model.model.js";
 import { Transmission } from "../models/metadata/transmission.model.js";
 import { Listing } from "../models/listing/listing.model.js";
+import { Part } from "../models/part/part.model.js";
+import { PartCategory } from "../models/part/partCategory.model.js";
 import { deleteFromR2, uploadToR2 } from "./storage.service.js";
 import { escapeRegex, httpError, isObjectId } from "../utils/http.js";
 
 const getMetadata = async () => {
   const [
-    makes, models, fuelTypes, transmissions, cities, colors, categories, equipments, makeCounts
+    makes, models, fuelTypes, transmissions, cities, colors, categories, equipments, makeCounts,
+    partCategories, partCategoryCounts
   ] =
     await Promise.all([
       Make.find().sort({ label: 1 }).lean(),
@@ -29,13 +32,21 @@ const getMetadata = async () => {
         { $match: { status: 'active' } },
         { $group: { _id: '$make', count: { $sum: 1 } } },
       ]),
+      PartCategory.find().sort({ order: 1, label: 1 }).lean(),
+      // Hər hissə kateqoriyasında aktiv elan sayı
+      Part.aggregate([
+        { $match: { status: 'active' } },
+        { $group: { _id: '$partCategory', count: { $sum: 1 } } },
+      ]),
     ])
 
   const countMap = new Map(makeCounts.map((c) => [String(c._id), c.count]))
+  const partCountMap = new Map(partCategoryCounts.map((c) => [String(c._id), c.count]))
 
   return {
     makes: makes.map((m) => ({ ...m, count: countMap.get(String(m._id)) ?? 0 })),
-    models, fuelTypes, transmissions, cities, colors, categories, equipments
+    models, fuelTypes, transmissions, cities, colors, categories, equipments,
+    partCategories: partCategories.map((c) => ({ ...c, count: partCountMap.get(String(c._id)) ?? 0 })),
   }
 }
 
@@ -132,8 +143,8 @@ const updateMake = async (makeId, makeLabel, file) => {
 }
 
 // Elanlarda istifadə olunan dəyəri silmək elanları sındırır (səhifədə make.label boş qalır)
-const assertNotUsed = async (field, id, what) => {
-  const count = await Listing.countDocuments({ [field]: id })
+const assertNotUsed = async (field, id, what, usageModel = Listing) => {
+  const count = await usageModel.countDocuments({ [field]: id })
   if (count > 0) {
     throw httpError(409, `Bu ${what} ${count} elanda istifadə olunur. Əvvəlcə həmin elanları dəyişin və ya silin`)
   }
@@ -146,6 +157,7 @@ const deleteMake = async (makeId) => {
   if (!make) throw httpError(404, 'Marka tapılmadı')
 
   await assertNotUsed('make', makeId, 'marka')
+  await assertNotUsed('make', makeId, 'marka (hissə elanlarında)', Part)
 
   await Model.deleteMany({ make: makeId })
   await Make.findByIdAndDelete(makeId)
@@ -210,6 +222,7 @@ const updateModel = async (modelId, label) => {
 const deleteModel = async (modelId) => {
   if (!isObjectId(modelId)) throw httpError(400, 'Yanlış model ID')
   await assertNotUsed('model', modelId, 'model')
+  await assertNotUsed('model', modelId, 'model (hissə elanlarında)', Part)
 
   const model = await Model.findByIdAndDelete(modelId)
   if (!model) throw httpError(404, 'Model tapılmadı')
@@ -229,6 +242,8 @@ const basicModels = {
   equipment: { Schema: Equipment, field: 'equipment', name: 'avadanlıq' },
   fueltype: { Schema: FuelType, field: 'fuelType', name: 'mühərrik növü' },
   transmission: { Schema: Transmission, field: 'transmission', name: 'sürətlər qutusu' },
+  // Hissə kateqoriyaları: istifadə sayı hissə elanlarında (Part) yoxlanılır
+  partcategory: { Schema: PartCategory, field: 'partCategory', name: 'hissə kateqoriyası', usageModel: Part },
 }
 
 const getBasic = (dataModel) => {
@@ -270,10 +285,10 @@ const updateBasicMetadata = async (dataModel, dataId, dataLabel) => {
 
 // METADATALARDAN 1 DENESIN SIL
 const deleteBasicMetadata = async (dataModel, dataId) => {
-  const { Schema, field, name } = getBasic(dataModel)
+  const { Schema, field, name, usageModel } = getBasic(dataModel)
   if (!isObjectId(dataId)) throw httpError(400, 'Yanlış ID')
 
-  await assertNotUsed(field, dataId, name)
+  await assertNotUsed(field, dataId, name, usageModel)
 
   const deleted = await Schema.findByIdAndDelete(dataId)
   if (!deleted) throw httpError(404, 'Tapılmadı')
@@ -298,8 +313,10 @@ const getUsage = async () => {
     },
   ])
 
+  const partCategoryRows = await Part.aggregate([{ $group: { _id: '$partCategory', count: { $sum: 1 } } }])
+
   const data = Object.fromEntries(
-    Object.entries(facets ?? {}).map(([field, rows]) => [
+    Object.entries({ ...(facets ?? {}), partCategory: partCategoryRows }).map(([field, rows]) => [
       field,
       Object.fromEntries(rows.filter((r) => r._id).map((r) => [String(r._id), r.count])),
     ])

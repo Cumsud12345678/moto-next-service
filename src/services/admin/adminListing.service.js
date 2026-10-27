@@ -227,13 +227,14 @@ const setStatusListing = async (listingId, status, message) => {
 const getDeletedListings = async (page = 1, limit = 10) => {
   const skip = (page - 1) * limit
   const [deletedListings, total] = await Promise.all([
-    DeletedListing.find()
+    // Hissə elanlarının surətləri bu siyahıda göstərilmir
+    DeletedListing.find({ kind: { $ne: 'part' } })
       .populate('deletedBy', '_id name email role')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
-    DeletedListing.countDocuments(),
+    DeletedListing.countDocuments({ kind: { $ne: 'part' } }),
   ])
 
   return { deletedListings, total }

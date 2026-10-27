@@ -1,6 +1,9 @@
 import { model, Schema } from "mongoose";
 
 const deletedListingSchema = new Schema({
+  // 'part' — ehtiyat hissəsi elanı. Köhnə yazılarda bu sahə yoxdur (motosiklet elanı sayılır)
+  kind: { type: String, enum: ['listing', 'part'], default: 'listing' },
+
   originalListingId: { type: Schema.Types.ObjectId, required: true, index: true },
   
   // Elanın snapshot-u (silinmə anındakı tam halı)

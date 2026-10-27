@@ -18,6 +18,8 @@ import userRoutes from "./routes/user/user.routes.js";
 import metadataRoutes from "./routes/metadata.routes.js";
 import messageRoutes from "./routes/user/message.routes.js";
 import makeRequestRoutes from './routes/metadata/makeRequest.routes.js'
+import partRoutes from './routes/user/part.routes.js'
+import { seedPartCategories } from './models/part/partCategory.model.js'
 
 import adminUserRoutes from './routes/admin/adminUser.routes.js'
 import adminListingRoutes from './routes/admin/adminListing.routes.js'
@@ -27,6 +29,7 @@ import adminMakeRequestRoutes from './routes/admin/makeRequest.routes.js'
 import adminErrorLogRoutes from './routes/admin/errorLog.routes.js'
 import adminStatsRoutes from './routes/admin/stats.routes.js'
 import adminReportRoutes from './routes/admin/report.routes.js'
+import adminPartRoutes from './routes/admin/adminPart.routes.js'
 
 // Bunlar olmadan server düzgün işləyə bilməz — başlamadan yoxlayırıq
 const REQUIRED_ENV = ['MONGO_URL', 'JWT_SECRET', 'REDIS_URL']
@@ -84,6 +87,7 @@ app.use('/api/groups', groupRoutes)
 app.use('/api/adsense', adsenseRoutes)
 app.use('/api/messages', messageRoutes)
 app.use('/api/make-requests', makeRequestRoutes)
+app.use('/api/parts', partRoutes)
 
 app.use('/api/admin/users', admin, adminUserRoutes)
 app.use('/api/admin/listings', admin, adminListingRoutes)
@@ -91,6 +95,7 @@ app.use('/api/admin/make-requests', admin, adminMakeRequestRoutes)
 app.use('/api/admin/error-logs', admin, adminErrorLogRoutes)
 app.use('/api/admin/stats', admin, adminStatsRoutes)
 app.use('/api/admin/reports', admin, adminReportRoutes)
+app.use('/api/admin/parts', admin, adminPartRoutes)
 
 // Mövcud olmayan endpoint — HTML əvəzinə JSON 404
 app.use((req, res) => {
@@ -120,6 +125,7 @@ const PORT = Number(process.env.PORT) || 5000
 const startServer = async () => {
   // ƏVVƏL: connectDB iki dəfə çağırılırdı (biri gözlənilmədən)
   await connectDB()
+  await seedPartCategories()
 
   const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`)
